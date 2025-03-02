@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
+from joblib import dump, load
 from collections import Counter
 import matplotlib.pyplot as plt
 
@@ -25,7 +26,7 @@ X_train, y_train = subset_to_numpy(dataset, train_indices)
 X_val, y_val = subset_to_numpy(dataset, val_indices)
 X_test, y_test = subset_to_numpy(dataset, test_indices)
 
-print("Distribution of mutation classes in training set: ", Counter(tuple([tuple(y) for y in y_train])))
+print("Distribution of mutation classes in training set: ", Counter(y_train))
 
 # Flatten 3D arrays
 X_train = X_train.reshape(len(X_train), -1)
@@ -50,3 +51,5 @@ disp.plot()
 plt.savefig("./../conf_matrix_rf.png")
 plt.close()
 print("Confusion matrix saved to file")
+
+dump(rf, "saved_models/baseline_rf.joblib")
