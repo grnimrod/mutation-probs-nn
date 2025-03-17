@@ -1,37 +1,30 @@
-import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
-from joblib import dump, load
-from collections import Counter
+import numpy as np
 import matplotlib.pyplot as plt
-
-from dataset import CustomDataset
-
-
-dataset = CustomDataset("./../data/15mer_A.tsv") # TODO: convert one-hot encoding of response variable to single categorical encoding
-
-train_indices = np.load("splits/train_indices.npy")
-val_indices = np.load("splits/val_indices.npy")
-test_indices = np.load("splits/test_indices.npy")
-
-# Obtain train val test splits using saved indices, convert them to np arrays
-def subset_to_numpy(dataset, indices):
-    context = [dataset[i][0].numpy() for i in indices]
-    res_mut = [np.argmax(dataset[i][1].numpy()) for i in indices]
-
-    return np.array(context), np.array(res_mut)
+from datetime import datetime
+from joblib import dump
 
 
-X_train, y_train = subset_to_numpy(dataset, train_indices)
-X_val, y_val = subset_to_numpy(dataset, val_indices)
-X_test, y_test = subset_to_numpy(dataset, test_indices)
+"""
+Load in splits, write function to direct encode response variable
+(for now, until I write custom function to calculate accuracy on vectors)
+"""
 
-print("Distribution of mutation classes in training set: ", Counter(y_train))
+X_train = np.load("./../data/splits/X_train.npy")
+y_train = np.load("./../data/splits/y_train.npy")
+X_val = np.load("./../data/splits/X_val.npy")
+y_val = np.load("./../data/splits/y_val.npy")
+X_test = np.load("./../data/splits/X_test.npy")
+y_test = np.load("./../data/splits/y_test.npy")
 
-# Flatten 3D arrays
-X_train = X_train.reshape(len(X_train), -1)
-X_val = X_val.reshape(len(X_val), -1)
-X_test = X_test.reshape(len(X_test), -1)
+# Direct encode response variable (temporal solution)
+def direct_encode(array):
+    return np.argmax(array, axis=1).reshape(-1)
+
+y_train = direct_encode(y_train)
+y_val = direct_encode(y_val)
+y_test = direct_encode(y_test)
 
 rf = RandomForestClassifier()
 rf.fit(X_train, y_train)
@@ -47,8 +40,8 @@ print("Accuracy: ", accuracy)
 cm = confusion_matrix(y_val, y_pred)
 disp = ConfusionMatrixDisplay(confusion_matrix=cm)
 disp.plot()
-
-plt.savefig("./../conf_matrix_rf.png")
+timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
+plt.savefig(f"./../figures/conf_matrix_rf_{timestamp}.png")
 plt.close()
 print("Confusion matrix saved to file")
 
