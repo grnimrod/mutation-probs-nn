@@ -16,7 +16,7 @@ def subset_data(input_file):
 
     filename = input_file.split(".")[-2]
 
-    subset_df.to_csv(f"./../{filename}_subset.tsv", sep="\t")
+    subset_df.to_csv(f"./../{filename}_subset.tsv", sep="\t", index=False)
 
 
 if __name__ == "__main__":

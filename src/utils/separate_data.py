@@ -3,15 +3,16 @@ import pandas as pd
 import argparse
 
 
-def separate_data(input_data):
-    df = pd.read_csv(input_data, sep="\t")
+def separate_data(input_file):
+    df = pd.read_csv(input_file, sep="\t")
 
     for nucl in df["type"].str[0].unique():
         data = df[df["type"].str[0] == nucl]
 
-        filename = f"15mer_{nucl}.tsv"
+        input_file_name = input_file.split(".")[-2]
+        filename = f"{input_file_name}_{nucl}.tsv"
 
-        data.to_csv(f"./../data/{filename}", sep="\t")
+        data.to_csv(f"./../{filename}", sep="\t", index=False)
 
 
 if __name__ == "__main__":
