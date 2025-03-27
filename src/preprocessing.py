@@ -2,6 +2,7 @@ import os
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
+import argparse
 
 
 def preprocess_data(tsv_data, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, random_state=42):
@@ -49,15 +50,25 @@ def preprocess_data(tsv_data, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, 
     X_test, y_test = one_hot_encode(test_dataset)
     
     # Save one-hot encoded splits
-    os.makedirs("./../data/splits", exist_ok=True)
+    os.makedirs("/faststorage/project/MutationAnalysis/Nimrod/data/splits", exist_ok=True)
 
-    # TODO: naming should reflect which file the splits are created of
-    np.save("./../data/splits/X_train.npy", X_train)
-    np.save("./../data/splits/y_train.npy", y_train)
-    np.save("./../data/splits/X_val.npy", X_val)
-    np.save("./../data/splits/y_val.npy", y_val)
-    np.save("./../data/splits/X_test.npy", X_test)
-    np.save("./../data/splits/y_test.npy", y_test)
+    filenames = ["X_train", "y_train", "X_val", "y_val", "X_test", "y_test"]
+    files = [X_train, y_train, X_val, y_val, X_test, y_test]
+
+    # Naming convention
+    reference_nucl = tsv_data.split(".")[0][-1] # Nucleotide at site is last character of the original filename
+
+    if "subset" in tsv_data:
+        for name, data in zip(filenames, files):
+            np.save(f"/faststorage/project/MutationAnalysis/Nimrod/data/splits/{name}_subset_{reference_nucl}.npy", data)
+    else:
+        for name, data in zip(filenames, files):
+            np.save(f"/faststorage/project/MutationAnalysis/Nimrod/data/splits/{name}_{reference_nucl}.npy", data)
 
 
-preprocess_data("./../data/DNM_15mer_v1_subset_A.tsv")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Create splits with corresponding naming")
+    parser.add_argument("tsv_data", type=str, help="Name of the tsv file that splits should be created of")
+
+    args = parser.parse_args()    
+    preprocess_data(args.tsv_data)
