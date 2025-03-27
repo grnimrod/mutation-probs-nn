@@ -11,12 +11,12 @@ Load in splits, write function to direct encode response variable
 (for now, until I write custom function to calculate accuracy on vectors)
 """
 
-X_train = np.load("./../data/splits/X_train.npy")
-y_train = np.load("./../data/splits/y_train.npy")
-X_val = np.load("./../data/splits/X_val.npy")
-y_val = np.load("./../data/splits/y_val.npy")
-X_test = np.load("./../data/splits/X_test.npy")
-y_test = np.load("./../data/splits/y_test.npy")
+X_train = np.load("/faststorage/project/MutationAnalysis/Nimrod/data/splits/X_train.npy")
+y_train = np.load("/faststorage/project/MutationAnalysis/Nimrod/data/splits/y_train.npy")
+X_val = np.load("/faststorage/project/MutationAnalysis/Nimrod/data/splits/X_val.npy")
+y_val = np.load("/faststorage/project/MutationAnalysis/Nimrod/data/splits/y_val.npy")
+X_test = np.load("/faststorage/project/MutationAnalysis/Nimrod/data/splits/X_test.npy")
+y_test = np.load("/faststorage/project/MutationAnalysis/Nimrod/data/splits/y_test.npy")
 
 # Direct encode response variable (temporal solution)
 def direct_encode(array):
@@ -41,8 +41,8 @@ cm = confusion_matrix(y_val, y_pred)
 disp = ConfusionMatrixDisplay(confusion_matrix=cm)
 disp.plot()
 timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
-plt.savefig(f"./../figures/conf_matrix_rf_{timestamp}.png")
+plt.savefig(f"/faststorage/project/MutationAnalysis/Nimrod/results/figures/conf_matrix_rf_{timestamp}.png")
 plt.close()
 print("Confusion matrix saved to file")
 
-dump(rf, "saved_models/baseline_rf.joblib")
+dump(rf, "/faststorage/project/MutationAnalysis/Nimrod/results/models/baseline_rf.joblib")

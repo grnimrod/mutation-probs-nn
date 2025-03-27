@@ -29,15 +29,14 @@ test_dataset = TensorDataset(X_test, y_test)
 feature, label = train_dataset[100]
 print(f"Example feature: {feature}\nexample label: {label}")
 
-# Choose device
-device = "cpu" # CPU for now, when working with full dataset, include option to utilize GPU
-
 # Set up network architecture
 class FullyConnectedNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.linear_relu_seq = nn.Sequential(
-            nn.Linear(in_features=15*4, out_features=256),
+            nn.Linear(in_features=15*4, out_features=512),
+            nn.ReLU(),
+            nn.Linear(in_features=512, out_features=256),
             nn.ReLU(),
             nn.Linear(in_features=256, out_features=128),
             nn.ReLU(),
@@ -54,12 +53,22 @@ class FullyConnectedNN(nn.Module):
 
 
 # Set model parameters
-lr = 0.001
-epochs = 10
+lr = 0.01
+epochs = 40
 bs = 64
 train_losses, val_losses = [], []
 
-model = FullyConnectedNN().to(device)
+model = FullyConnectedNN()
+
+# Choose device
+device = "cpu"
+if torch.cuda.is_available():
+    device = "cuda:0"
+    if torch.cuda.device_count > 1:
+        model = nn.DataParallel(model)
+model.to(device)
+print(f"Using device: {device}")
+
 opt = optim.Adam(model.parameters(), lr=lr)
 
 # Wrap DataLoader iterator around our custom dataset(s)
@@ -99,7 +108,7 @@ for epoch in range(epochs):
     model.eval()
     running_loss = 0.0
     with torch.no_grad():
-        for xb, yb in test_loader:
+        for xb, yb in val_loader:
             yb_indices = yb.argmax(dim=1)
             xb, yb_indices = xb.to(device), yb_indices.to(device)
 
@@ -116,6 +125,8 @@ plt.plot(train_losses, label="Training loss")
 plt.plot(val_losses, label="Validation loss")
 plt.legend()
 plt.title("Loss over epochs")
+plt.xlabel("Epoch")
+plt.ylabel("Cross Entropy Loss")
 timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
-plt.savefig(f"./../loss_curves_fc_{timestamp}.png")
+plt.savefig(f"./../figures/loss_curves_fc_{timestamp}.png")
 plt.close()

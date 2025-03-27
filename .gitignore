@@ -1,0 +1,4 @@
+/data/*
+/results/logs
+/results/models
+/results/ray_tune
