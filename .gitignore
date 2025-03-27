@@ -1,4 +1,5 @@
 /data/*
+/results/figures
 /results/logs
 /results/models
 /results/ray_tune
