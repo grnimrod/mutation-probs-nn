@@ -16,22 +16,33 @@ import ray.cloudpickle as pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+import argparse
 
 
-def load_data(data_dir="/faststorage/project/MutationAnalysis/Nimrod/data/splits"):
-    X_train = np.load(f"{data_dir}/X_train.npy")
-    y_train = np.load(f"{data_dir}/y_train.npy")
-    X_val = np.load(f"{data_dir}/X_val.npy")
-    y_val = np.load(f"{data_dir}/y_val.npy")
-    X_test = np.load(f"{data_dir}/X_test.npy")
-    y_test = np.load(f"{data_dir}/y_test.npy")
+def load_data(data_version, data_dir="/faststorage/project/MutationAnalysis/Nimrod/data/splits"):
+    if data_version == "fA":
+        filenames = ["X_train_A", "y_train_A", "X_val_A", "y_val_A", "X_test_A", "y_test_A"]
+        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(data_dir, filename + ".npy")) for filename in filenames]
 
-    X_train = torch.as_tensor(X_train, dtype=torch.float32)
-    y_train = torch.as_tensor(y_train, dtype=torch.float32)
-    X_val = torch.as_tensor(X_val, dtype=torch.float32)
-    y_val = torch.as_tensor(y_val, dtype=torch.float32)
-    X_test = torch.as_tensor(X_test, dtype=torch.float32)
-    y_test = torch.as_tensor(y_test, dtype=torch.float32)
+    elif data_version == "fC":
+        filenames = ["X_train_C", "y_train_C", "X_val_C", "y_val_C", "X_test_C", "y_test_C"]
+        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(data_dir, filename + ".npy")) for filename in filenames]
+
+    elif data_version == "sA":
+        filenames = ["X_train_subset_A", "y_train_subset_A", "X_val_subset_A", "y_val_subset_A", "X_test_subset_A", "y_test_subset_A"]
+        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(data_dir, filename + ".npy")) for filename in filenames]
+
+    elif data_version == "sC":
+        filenames = ["X_train_subset_C", "y_train_subset_C", "X_val_subset_C", "y_val_subset_C", "X_test_subset_C", "y_test_subset_C"]
+        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(data_dir, filename + ".npy")) for filename in filenames]
+
+    else:
+        print("Invalid file version specification")
+        exit(1)
+
+    files = [X_train, y_train, X_val, y_val, X_test, y_test]
+    files = [torch.as_tensor(file, dtype=torch.float32) for file in files]
+    X_train, y_train, X_val, y_val, X_test, y_test = files
 
     train_dataset = TensorDataset(X_train, y_train)
     val_dataset = TensorDataset(X_val, y_val)
@@ -63,7 +74,7 @@ class FullyConnectedNN(nn.Module):
         return F.softmax(logits, dim=-1)
 
 
-def train_model(config, data_dir=None):
+def train_model(config, data_version, data_dir=None):
     trial_name = session.get_trial_name()
 
     model = FullyConnectedNN(config["l1"], config["l2"], config["l3"])
@@ -96,7 +107,7 @@ def train_model(config, data_dir=None):
     else:
         start_epoch = 0
 
-    train_dataset, val_dataset, _ = load_data(data_dir)
+    train_dataset, val_dataset, _ = load_data(data_version, data_dir)
 
     train_loader = DataLoader(train_dataset, batch_size=int(config["batch_size"]), shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=int(config["batch_size"])*2, shuffle=False)
@@ -184,10 +195,22 @@ def test_set_loss(model, device="cpu"):
 
 
 def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--data_version",
+        type=str,
+        choices=["fA", "fC", "sA", "sC"],
+        required=True,
+        help="Specify version of the data requested (full or subset, A or C as reference nucleotide)"
+    )
+
+    args = parser.parse_args()
+
     ray.init()
     
+    data_version = args.data_version
     data_dir = "/faststorage/project/MutationAnalysis/Nimrod/data/splits"
-    load_data(data_dir)
+    # load_data(data_version, data_dir)
     config = {
         "l1": tune.choice([2 ** i for i in range(10)]),
         "l2": tune.choice([2 ** i for i in range(10)]),
@@ -204,7 +227,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     )
     
     result = tune.run(
-        partial(train_model, data_dir=data_dir),
+        partial(train_model, data_version=data_version, data_dir=data_dir),
         resources_per_trial={"cpu": 2, "gpu": gpus_per_trial},
         config=config,
         num_samples=num_samples,
@@ -212,24 +235,24 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
         storage_path="/faststorage/project/MutationAnalysis/Nimrod/results/ray_tune/experiments"
     )
 
-    # analysis = tune.ExperimentAnalysis("/faststorage/project/MutationAnalysis/Nimrod/results/ray_tune/experiments/train_model")
+    analysis = tune.ExperimentAnalysis(result.experiment_path)
 
-    # best_trials = sorted(
-    #     analysis.trial_dataframes.items(),
-    #     key=lambda x: x[1]["val_loss"].min()
-    # )[:3]
+    best_trials = sorted(
+        analysis.trial_dataframes.items(),
+        key=lambda x: x[1]["val_loss"].min()
+    )[:3]
 
-    # for trial_name, df in best_trials:
-    #     # Create loss curve figures of top 3 best performing trial
-    #     plt.plot(df["train_losses"], label="Training loss")
-    #     plt.plot(df["val_losses"], label="Validation loss")
-    #     plt.legend()
-    #     plt.title("Loss over epochs")
-    #     plt.xlabel("Epoch")
-    #     plt.ylabel("Cross Entropy Loss")
-    #     timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
-    #     plt.savefig(f"/faststorage/project/MutationAnalysis/Nimrod/results/figures/loss_curves_fc_{trial_name}_{timestamp}.png")
-    #     plt.close()
+    for trial_name, df in best_trials:
+        # Create loss curve figures of top 3 best performing trial
+        plt.plot(df["train_losses"], label="Training loss")
+        plt.plot(df["val_losses"], label="Validation loss")
+        plt.legend()
+        plt.title("Loss over epochs")
+        plt.xlabel("Epoch")
+        plt.ylabel("Cross Entropy Loss")
+        timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
+        plt.savefig(f"/faststorage/project/MutationAnalysis/Nimrod/results/figures/loss_curves_fc_{trial_name}_{timestamp}.png")
+        plt.close()
 
     best_trial = result.get_best_trial(
         metric="val_loss",
@@ -263,4 +286,4 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
 
 
 if __name__ == "__main__":
-    main(num_samples=10, max_num_epochs=10, gpus_per_trial=1)
+    main(num_samples=10, max_num_epochs=10, gpus_per_trial=0)
