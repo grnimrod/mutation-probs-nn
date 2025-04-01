@@ -83,7 +83,7 @@ def train_fc(data_version):
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda:0"
-        if torch.cuda.device_count > 1:
+        if torch.cuda.device_count() > 1:
             model = nn.DataParallel(model)
     model.to(device)
     print(f"Using device: {device}")

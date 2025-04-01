@@ -69,6 +69,12 @@ def train_model(config, data_dir=None):
     model = FullyConnectedNN(config["l1"], config["l2"], config["l3"])
 
     device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda:0"
+        if torch.cuda.device_count() > 1:
+            model = nn.DataParallel(model)
+    model.to(device)
+    print(f"Using device: {device}")
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=config["lr"])
@@ -130,15 +136,6 @@ def train_model(config, data_dir=None):
             
             val_loss = running_loss / len(val_loader.dataset)
             val_losses.append(val_loss)
-
-        # Report metrics to ray for later retrieval
-        # session.report({
-        #     "epoch": epoch,
-        #     # "train_loss": train_loss,
-        #     "val_loss": val_loss, # Need this to identify top three trials
-        #     "train_losses": train_losses, # These are what we want to plot
-        #     "val_losses": val_losses
-        # })
         
         print(f"Epoch {epoch + 1}/{epochs} train loss: {train_loss}, validation loss: {val_loss}")
 
@@ -154,7 +151,7 @@ def train_model(config, data_dir=None):
             
             checkpoint = Checkpoint.from_directory(checkpoint_dir)
             tune.report(
-                {"val_loss": val_loss},
+                {"val_loss": val_loss, "train_losses": train_losses, "val_losses": val_losses},
                 checkpoint=checkpoint,
             )
     
@@ -244,6 +241,12 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
 
     best_trained_model = FullyConnectedNN(best_trial.config["l1"], best_trial.config["l2"], best_trial.config["l3"])
     device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda:0"
+        if gpus_per_trial > 1:
+            model = nn.DataParallel(model)
+    model.to(device)
+    print(f"Using device: {device}")
 
     best_checkpoint = result.get_best_checkpoint(trial=best_trial, metric="val_loss", mode="min")
     with best_checkpoint.as_directory() as checkpoint_dir:
@@ -260,4 +263,4 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
 
 
 if __name__ == "__main__":
-    main(num_samples=10, max_num_epochs=10, gpus_per_trial=0)
+    main(num_samples=10, max_num_epochs=10, gpus_per_trial=1)
