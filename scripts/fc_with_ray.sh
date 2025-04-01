@@ -1,14 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=fc_ray_trials
 #SBATCH --account=MutationAnalysis
-#SBATCH --output=/faststorage/project/MutationAnalysis/Nimrod/results/logs/ray_output.log
-#SBATCH --error=/faststorage/project/MutationAnalysis/Nimrod/results/logs/ray_error.log
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --output=/faststorage/project/MutationAnalysis/Nimrod/results/logs/%j_ray_output.log
+#SBATCH --error=/faststorage/project/MutationAnalysis/Nimrod/results/logs/%j_ray_error.log
+
 #SBATCH --nodes=1
 #SBATCH --ntasks=8
 #SBATCH --cpus-per-task=1
-#SBATCH --time=01:00:00
+#SBATCH --time=02:00:00
 
 source /home/grnimrod/miniforge3/etc/profile.d/conda.sh
 
@@ -25,4 +24,4 @@ ray start --head --node-ip-address="$HEAD_NODE" --port=6379 --num-cpus=$SLURM_CP
 sleep 5
 
 # Run the Python script
-python /faststorage/project/MutationAnalysis/Nimrod/src/train_fc_ray.py --data_version fA
+python /faststorage/project/MutationAnalysis/Nimrod/src/train_fc_ray.py --data_version sA
