@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=train_without_ray
+#SBATCH --job-name=fc_without_ray
 #SBATCH --account=MutationAnalysis
 #SBATCH --output=/faststorage/project/MutationAnalysis/Nimrod/results/logs/output_%j.log
 #SBATCH --error=/faststorage/project/MutationAnalysis/Nimrod/results/logs/error_%j.log
