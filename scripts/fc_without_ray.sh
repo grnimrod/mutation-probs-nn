@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=fc_without_ray
 #SBATCH --account=MutationAnalysis
-#SBATCH --output=/faststorage/project/MutationAnalysis/Nimrod/results/logs/output_%j.log
-#SBATCH --error=/faststorage/project/MutationAnalysis/Nimrod/results/logs/error_%j.log
+#SBATCH --output=/faststorage/project/MutationAnalysis/Nimrod/results/logs/%j_output.log
+#SBATCH --error=/faststorage/project/MutationAnalysis/Nimrod/results/logs/%j_error.log
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
