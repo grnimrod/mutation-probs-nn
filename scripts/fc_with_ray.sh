@@ -3,11 +3,12 @@
 #SBATCH --account=MutationAnalysis
 #SBATCH --output=/faststorage/project/MutationAnalysis/Nimrod/results/logs/%j_ray_output.log
 #SBATCH --error=/faststorage/project/MutationAnalysis/Nimrod/results/logs/%j_ray_error.log
-
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks=8
 #SBATCH --cpus-per-task=1
-#SBATCH --time=02:00:00
+#SBATCH --time=24:00:00
 
 source /home/grnimrod/miniforge3/etc/profile.d/conda.sh
 

@@ -75,8 +75,6 @@ class FullyConnectedNN(nn.Module):
 
 
 def train_model(config, data_version, data_dir=None):
-    trial_name = session.get_trial_name()
-
     model = FullyConnectedNN(config["l1"], config["l2"], config["l3"])
 
     device = "cpu"
@@ -162,7 +160,7 @@ def train_model(config, data_version, data_dir=None):
             
             checkpoint = Checkpoint.from_directory(checkpoint_dir)
             tune.report(
-                {"val_loss": val_loss, "train_losses": train_losses, "val_losses": val_losses},
+                {"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss},
                 checkpoint=checkpoint,
             )
     
@@ -244,8 +242,8 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
 
     for trial_name, df in best_trials:
         # Create loss curve figures of top 3 best performing trial
-        plt.plot(df["train_losses"], label="Training loss")
-        plt.plot(df["val_losses"], label="Validation loss")
+        plt.plot(df["epoch"], df["train_loss"], label="Training loss")
+        plt.plot(df["epoch"], df["val_loss"], label="Validation loss")
         plt.legend()
         plt.title("Loss over epochs")
         plt.xlabel("Epoch")
@@ -268,7 +266,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
         device = "cuda:0"
         if gpus_per_trial > 1:
             model = nn.DataParallel(model)
-    model.to(device)
+    best_trained_model.to(device)
     print(f"Using device: {device}")
 
     best_checkpoint = result.get_best_checkpoint(trial=best_trial, metric="val_loss", mode="min")
@@ -286,4 +284,4 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
 
 
 if __name__ == "__main__":
-    main(num_samples=10, max_num_epochs=10, gpus_per_trial=0)
+    main(num_samples=10, max_num_epochs=30, gpus_per_trial=0)
