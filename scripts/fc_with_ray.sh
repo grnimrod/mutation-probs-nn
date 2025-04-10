@@ -25,4 +25,4 @@ ray start --head --node-ip-address="$HEAD_NODE" --port=6379 --num-cpus=$SLURM_CP
 sleep 5
 
 # Run the Python script
-python /faststorage/project/MutationAnalysis/Nimrod/src/train_fc_ray.py --data_version sA
+python /faststorage/project/MutationAnalysis/Nimrod/src/train_fc_ray.py --data_version fA

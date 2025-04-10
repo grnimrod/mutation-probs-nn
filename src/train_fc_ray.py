@@ -74,7 +74,7 @@ class FullyConnectedNN(nn.Module):
         return F.softmax(logits, dim=-1)
 
 
-def train_model(config, data_version, data_dir=None):
+def train_model(config, data_version, epochs, data_dir=None):
     model = FullyConnectedNN(config["l1"], config["l2"], config["l3"])
 
     device = "cpu"
@@ -90,8 +90,6 @@ def train_model(config, data_version, data_dir=None):
 
     train_losses = []
     val_losses = []
-
-    epochs = 10
 
     checkpoint = get_checkpoint()
     if checkpoint:
@@ -192,7 +190,7 @@ def test_set_loss(model, device="cpu"):
         test_losses.append(test_loss)
 
 
-def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
+def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--data_version",
@@ -225,7 +223,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     )
     
     result = tune.run(
-        partial(train_model, data_version=data_version, data_dir=data_dir),
+        partial(train_model, data_version=data_version, epochs=max_num_epochs, data_dir=data_dir),
         resources_per_trial={"cpu": 2, "gpu": gpus_per_trial},
         config=config,
         num_samples=num_samples,
@@ -284,4 +282,4 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
 
 
 if __name__ == "__main__":
-    main(num_samples=10, max_num_epochs=30, gpus_per_trial=0)
+    main(num_samples=10, max_num_epochs=30, gpus_per_trial=1)
