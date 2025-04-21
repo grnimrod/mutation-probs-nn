@@ -17,7 +17,7 @@ def extract_kmer(input_file, kmer_length):
 
     df["context"] = df["context"].str[(middle_index - (kmer_length // 2)):(middle_index + (kmer_length // 2) + 1)]
 
-    df.to_csv(f"/faststorage/project/MutationAnalysis/Nimrod/data/raw/{kmer_length}mer_full.tsv", sep="\t")
+    df.to_csv(f"/faststorage/project/MutationAnalysis/Nimrod/data/raw/{kmer_length}mer_full.tsv", sep="\t", index=False)
 
 
 if __name__ == "__main__":
