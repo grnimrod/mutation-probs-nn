@@ -19,7 +19,8 @@ def load_splits(data_version):
         "15fC": "15mer_full_C",
         "15sA": "15mer_subset_A",
         "15sC": "15mer_subset_C",
-        "experiment": "experiment"
+        "experiment_full": "experiment_full",
+        "experiment_subset": "experiment_subset"
     }
 
     if data_version not in version_map:

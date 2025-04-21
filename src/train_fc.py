@@ -141,7 +141,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_version",
         type=str,
-        choices=["3fA", "3fC", "3sA", "3sC", "15fA", "15fC", "15sA", "15sC", "experiment"],
+        choices=["3fA", "3fC", "3sA", "3sC", "15fA", "15fC", "15sA", "15sC", "experiment_full", "experiment_subset"],
         required=True,
         help="Specify version of the data requested (kmer length, full or subset, A or C as reference nucleotide)"
     )

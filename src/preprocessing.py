@@ -76,10 +76,10 @@ def preprocess_data(tsv_data, train_ratio=0.7, random_state=42):
         filename = tsv_data.split("/")[-1].split(".")[0]
         size_info = filename.split("_")[-1]
 
-        folder_name = "experiment"
+        folder_name = f"experiment_{size_info}"
         os.makedirs(f"{filepath}/{folder_name}", exist_ok=True)
         for name, data in zip(splitnames, splits):
-            np.save(f"{filepath}/{folder_name}/{name}_{size_info}_experiment.npy", data)
+            np.save(f"{filepath}/{folder_name}/{name}_experiment_{size_info}.npy", data)
 
 
 if __name__ == "__main__":
