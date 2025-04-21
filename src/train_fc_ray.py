@@ -238,6 +238,9 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
         key=lambda x: x[1]["val_loss"].min()
     )[:3]
 
+    plots_dir = "/faststorage/project/MutationAnalysis/Nimrod/results/figures/fc"
+    os.makedirs(plots_dir, exist_ok=True)
+
     for trial_name, df in best_trials:
         # Create loss curve figures of top 3 best performing trial
         plt.plot(df["epoch"], df["train_loss"], label="Training loss")
@@ -247,7 +250,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
         plt.xlabel("Epoch")
         plt.ylabel("Cross Entropy Loss")
         timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
-        plt.savefig(f"/faststorage/project/MutationAnalysis/Nimrod/results/figures/loss_curves_fc_{trial_name}_{timestamp}.png")
+        plt.savefig(f"{plots_dir}/loss_curves_fc_{trial_name}_{timestamp}.png")
         plt.close()
 
     best_trial = result.get_best_trial(

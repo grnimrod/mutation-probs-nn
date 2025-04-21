@@ -5,41 +5,17 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 import argparse
+
+from utils.load_splits import load_splits
 
 
 def train_cnn(data_version):
-    filepath = "/faststorage/project/MutationAnalysis/Nimrod/data/splits/"
-
-    if data_version == "fA":
-        filenames = ["X_train_A", "y_train_A", "X_val_A", "y_val_A", "X_test_A", "y_test_A"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(filepath, filename + ".npy")) for filename in filenames]
-
-    elif data_version == "fC":
-        filenames = ["X_train_C", "y_train_C", "X_val_C", "y_val_C", "X_test_C", "y_test_C"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(filepath, filename + ".npy")) for filename in filenames]
-
-    elif data_version == "sA":
-        filenames = ["X_train_subset_A", "y_train_subset_A", "X_val_subset_A", "y_val_subset_A", "X_test_subset_A", "y_test_subset_A"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(filepath, filename + ".npy")) for filename in filenames]
-
-    elif data_version == "sC":
-        filenames = ["X_train_subset_C", "y_train_subset_C", "X_val_subset_C", "y_val_subset_C", "X_test_subset_C", "y_test_subset_C"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(filepath, filename + ".npy")) for filename in filenames]
-
-    else:
-        print("Invalid file version specification")
-        exit(1)
-
-    files = [X_train, y_train, X_val, y_val, X_test, y_test]
-    files = [torch.as_tensor(file, dtype=torch.float32) for file in files]
-    X_train, y_train, X_val, y_val, X_test, y_test = files
+    X_train, y_train, X_val, y_val, X_test, y_test = load_splits(data_version)
 
     expl_files = [X_train, X_val, X_test]
-    for file in expl_files:
-        print(file.shape)
-
-    expl_files = [file.view(file.size(0), 4, 15) for file in expl_files]
+    expl_files = [file.view(file.size(0), 15, 4).transpose(1, 2) for file in expl_files]
     X_train, X_val, X_test = expl_files
 
     train_dataset = TensorDataset(X_train, y_train)
@@ -57,34 +33,42 @@ def train_cnn(data_version):
     class CustomCNN(nn.Module):
         def __init__(self):
             super().__init__()
-            self.conv1 = nn.Conv1d(in_channels=4, out_channels=32, kernel_size=3)
-            self.conv2 = nn.Conv1d(in_channels=32, out_channels=32, kernel_size=3)
-            self.fc1 = nn.Linear(in_features=32 * (15 - 2 - 2), out_features=128)
-            self.fc2 = nn.Linear(in_features=128, out_features=4)
+            self.net = nn.Sequential(
+                nn.LazyConv1d(out_channels=16, kernel_size=3), nn.LazyBatchNorm1d(), nn.ReLU(),
+                nn.AvgPool1d(kernel_size=2, stride=2),
+                nn.LazyConv1d(out_channels=64, kernel_size=3), nn.LazyBatchNorm1d(), nn.ReLU(),
+                # nn.AvgPool1d(kernel_size=2, stride=2),
+                nn.LazyConv1d(out_channels=256, kernel_size=3), nn.LazyBatchNorm1d(), nn.ReLU(),
+                nn.Flatten(),
+                nn.LazyLinear(32), nn.LazyBatchNorm1d(), nn.ReLU(),
+                nn.LazyLinear(4)
+            )
         
         def forward(self, x):
-            x = self.conv1(x)
-            x = self.conv2(x)
-
-            x = x.view(x.size(0), -1)
-
-            x = self.fc1(x)
-            x = F.relu(x)
-            x = self.fc2(x)
+            x = self.net(x)
             return x
         
         def predict_proba(self, x):
             logits = self.forward(x)
             return F.softmax(logits, dim=-1)
+        
+        def layer_summary(self, x_shape):
+            x = torch.randn(*x_shape)
+            for layer in self.net:
+                x = layer(x)
+                print(layer.__class__.__name__, "output shape:\t", x.shape)
 
 
     # Set model parameters
     lr = 0.01
-    epochs = 10
+    epochs = 40
     bs = 64
+    print(f"Learning rate: {lr}\nEpochs: {epochs}\nBatch size: {bs}")
+
     train_losses, val_losses = [], []
 
     model = CustomCNN().to(device)
+    model.layer_summary((2, 4, 15))
     opt = optim.Adam(model.parameters(), lr=lr)
 
     # Wrap DataLoader iterator around our custom dataset(s)
@@ -94,8 +78,8 @@ def train_cnn(data_version):
 
     loss_func = nn.CrossEntropyLoss()
 
-    example_out = model.predict_proba(feature)
-    print(f"Example of model output: {example_out}, {example_out.shape}")
+    # example_out = model.predict_proba(feature)
+    # print(f"Example of model output: {example_out}, {example_out.shape}")
 
     for epoch in range(epochs):
         # Training phase
@@ -131,11 +115,15 @@ def train_cnn(data_version):
         
         print(f"Epoch {epoch + 1}/{epochs} train loss: {train_loss}, validation loss: {val_loss}")
 
+    plots_dir = "/faststorage/project/MutationAnalysis/Nimrod/results/figures/cnn"
+    os.makedirs(plots_dir, exist_ok=True)
+
     plt.plot(train_losses, label="Training loss")
     plt.plot(val_losses, label="Validation loss")
     plt.legend()
     plt.title("Loss over epochs")
-    plt.savefig("./../loss_curves_fc.png")
+    timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
+    plt.savefig(f"{plots_dir}/loss_curves_cnn_{timestamp}.png")
     plt.close()
 
 

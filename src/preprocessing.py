@@ -5,18 +5,20 @@ import numpy as np
 import argparse
 
 
-def preprocess_data(tsv_data, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, random_state=42):
+def preprocess_data(tsv_data, train_ratio=0.7, random_state=42):
+    """
+    Preprocessing function. Takes in tsv file, one-hot encodes
+    feature and label columns, then creates train val test
+    feature and label arrays separately, six files in total.
+    Handles experiment files separated from regular files.
+    """
+
     # Read in tsv file
     df = pd.read_csv(tsv_data, sep="\t")
 
     # Create train val test splits
-    temp_dataset, val_dataset = train_test_split(df, test_size=val_ratio, random_state=random_state, stratify=df["mut"])
-    train_dataset, test_dataset = train_test_split(
-        temp_dataset,
-        test_size=test_ratio/(train_ratio + test_ratio),
-        random_state=random_state,
-        stratify=temp_dataset["mut"]
-        )
+    train_dataset, temp_dataset = train_test_split(df, train_size=train_ratio, random_state=random_state, stratify=df["mut"])
+    val_dataset, test_dataset = train_test_split(temp_dataset, test_size=0.5, random_state=random_state, stratify=temp_dataset["mut"])
 
     # One-hot encode
     alphabet = {
@@ -50,25 +52,39 @@ def preprocess_data(tsv_data, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15, 
     X_test, y_test = one_hot_encode(test_dataset)
     
     # Save one-hot encoded splits
-    os.makedirs("/faststorage/project/MutationAnalysis/Nimrod/data/splits", exist_ok=True)
+    filepath = "/faststorage/project/MutationAnalysis/Nimrod/data/splits"
+    os.makedirs(filepath, exist_ok=True)
 
-    filenames = ["X_train", "y_train", "X_val", "y_val", "X_test", "y_test"]
-    files = [X_train, y_train, X_val, y_val, X_test, y_test]
+    splitnames = ["X_train", "y_train", "X_val", "y_val", "X_test", "y_test"]
+    splits = [X_train, y_train, X_val, y_val, X_test, y_test]
 
     # Naming convention
-    reference_nucl = tsv_data.split(".")[0][-1] # Nucleotide at site is last character of the original filename
+    if "experiment" not in tsv_data:
+        filename = tsv_data.split("/")[-1].split(".")[0] # Name of input file with path leading to it and file extension stripped
+        parts = filename.split("_") # Naming of possible input files: kmer_fullorsubset_refnucl
+        if len(parts) != 3:
+            raise ValueError(f"Unexpected filename format: {filename}")
+        kmer_name, size_info, ref_nucl = parts
 
-    if "subset" in tsv_data:
-        for name, data in zip(filenames, files):
-            np.save(f"/faststorage/project/MutationAnalysis/Nimrod/data/splits/{name}_subset_{reference_nucl}.npy", data)
-    else:
-        for name, data in zip(filenames, files):
-            np.save(f"/faststorage/project/MutationAnalysis/Nimrod/data/splits/{name}_{reference_nucl}.npy", data)
+        folder_name = f"{kmer_name}_{size_info}_{ref_nucl}"
+        os.makedirs(f"{filepath}/{folder_name}", exist_ok=True)
+
+        for name, data in zip(splitnames, splits):
+            np.save(f"{filepath}/{folder_name}/{name}_{kmer_name}_{size_info}_{ref_nucl}.npy", data)
+
+    elif "experiment" in tsv_data:
+        filename = tsv_data.split("/")[-1].split(".")[0]
+        size_info = filename.split("_")[-1]
+
+        folder_name = "experiment"
+        os.makedirs(f"{filepath}/{folder_name}", exist_ok=True)
+        for name, data in zip(splitnames, splits):
+            np.save(f"{filepath}/{folder_name}/{name}_{size_info}_experiment.npy", data)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create splits with corresponding naming")
     parser.add_argument("tsv_data", type=str, help="Name of the tsv file that splits should be created of")
 
-    args = parser.parse_args()    
+    args = parser.parse_args()
     preprocess_data(args.tsv_data)
