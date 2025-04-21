@@ -7,6 +7,8 @@ from datetime import datetime
 from joblib import dump
 import argparse
 
+from utils.load_splits import load_splits
+
 
 def train_baseline(data_version):
     """
@@ -14,27 +16,7 @@ def train_baseline(data_version):
     (for now, until I write custom function to calculate accuracy on vectors)
     """
 
-    filepath = "/faststorage/project/MutationAnalysis/Nimrod/data/splits/"
-
-    if data_version == "fA":
-        filenames = ["X_train_A", "y_train_A", "X_val_A", "y_val_A", "X_test_A", "y_test_A"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(filepath, filename + ".npy")) for filename in filenames]
-
-    elif data_version == "fC":
-        filenames = ["X_train_C", "y_train_C", "X_val_C", "y_val_C", "X_test_C", "y_test_C"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(filepath, filename + ".npy")) for filename in filenames]
-
-    elif data_version == "sA":
-        filenames = ["X_train_subset_A", "y_train_subset_A", "X_val_subset_A", "y_val_subset_A", "X_test_subset_A", "y_test_subset_A"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(filepath, filename + ".npy")) for filename in filenames]
-
-    elif data_version == "sC":
-        filenames = ["X_train_subset_C", "y_train_subset_C", "X_val_subset_C", "y_val_subset_C", "X_test_subset_C", "y_test_subset_C"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(filepath, filename + ".npy")) for filename in filenames]
-
-    else:
-        print("Invalid file version specification")
-        exit(1)
+    X_train, y_train, X_val, y_val, X_test, y_test = load_splits(data_version)
 
     # Direct encode response variable (temporal solution)
     def direct_encode(array):
@@ -55,11 +37,14 @@ def train_baseline(data_version):
     accuracy = accuracy_score(y_val, y_pred)
     print("Accuracy: ", accuracy)
 
+    plots_dir = "/faststorage/project/MutationAnalysis/Nimrod/results/figures/baseline"
+    os.makedirs(plots_dir, exist_ok=True)
+
     cm = confusion_matrix(y_val, y_pred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
     disp.plot()
     timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
-    plt.savefig(f"/faststorage/project/MutationAnalysis/Nimrod/results/figures/conf_matrix_rf_{timestamp}.png")
+    plt.savefig(f"{plots_dir}/conf_matrix_rf_{timestamp}.png")
     plt.close()
     print("Confusion matrix saved to file")
 
@@ -71,7 +56,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_version",
         type=str,
-        choices=["fA", "fC", "sA", "sC"],
+        choices=["3fA", "3fC", "3sA", "3sC", "15fA", "15fC", "15sA", "15sC", "experiment"],
         required=True,
         help="Specify version of the data requested (full or subset, A or C as reference nucleotide)"
     )
