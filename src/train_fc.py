@@ -16,11 +16,9 @@ def train_fc(data_version):
     Load in splits, set up model architecture, train model, save loss curves figure
     """
 
-    X_train, y_train, X_val, y_val, X_test, y_test = load_splits(data_version)
+    print(f"Version of the data: {data_version}")
 
-    y_train = torch.argmax(y_train, dim=1).long()
-    y_val = torch.argmax(y_val, dim=1).long()
-    y_test = torch.argmax(y_test, dim=1).long()
+    X_train, y_train, X_val, y_val, X_test, y_test = load_splits(data_version)
 
     train_dataset = TensorDataset(X_train, y_train)
     val_dataset = TensorDataset(X_val, y_val)
@@ -56,7 +54,7 @@ def train_fc(data_version):
 
     # Set model parameters
     lr = 0.001
-    epochs = 40
+    epochs = 100
     bs = 64
     train_losses, val_losses = [], []
 
@@ -73,7 +71,8 @@ def train_fc(data_version):
     model.to(device)
     print(f"Using device: {device}")
 
-    opt = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+    opt = optim.Adam(model.parameters(), lr=lr) # TODO: possibly add weight decay
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, mode='min', patience=3, factor=0.5, verbose=True)
 
     # Wrap DataLoader iterator around our custom dataset(s)
     train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True)
@@ -93,8 +92,6 @@ def train_fc(data_version):
         model.train()
         running_loss = 0.0
         for xb, yb in train_loader:
-            # yb = yb.argmax(dim=1) # CrossEntropyLoss() expects class index as target
-
             pred = model(xb)
             loss = loss_func(pred, yb)
             opt.zero_grad()
@@ -106,18 +103,33 @@ def train_fc(data_version):
         
         # Validation phase
         model.eval()
-        running_loss = 0.0
+        val_running_loss = 0.0
+        val_correct = torch.zeros(yb.shape[1], device=device)
+        val_total = 0
+
         with torch.no_grad():
             for xb, yb in val_loader:
-                # yb = yb.argmax(dim=1)
-
+                xb = xb.to(device)
+                yb = yb.to(device)
                 pred = model(xb)
                 loss = loss_func(pred, yb)
-                running_loss += loss.item() * yb.size(0)
-            val_loss = running_loss / len(val_loader.dataset)
-            val_losses.append(val_loss)
-        
-        print(f"Epoch {epoch + 1}/{epochs} train loss: {train_loss}, validation loss: {val_loss}")
+                val_running_loss += loss.item() * yb.size(0)
+
+                probs = torch.sigmoid(pred)
+                pred_labels = (probs >= 0.5).float()
+                correct = (pred_labels == yb).float().sum(dim=0)
+                val_correct += correct
+                val_total += yb.size(0)
+
+        val_loss = val_running_loss / len(val_loader.dataset)
+        val_losses.append(val_loss)
+        val_acc_per_label = val_correct / val_total
+        mean_val_acc = val_acc_per_label.mean().item()
+
+        # scheduler.step(val_loss)
+
+        print(f"Epoch {epoch + 1}/{epochs} val loss: {val_loss:.4f}, val acc: {mean_val_acc:.4f}")
+
 
     plots_dir = "/faststorage/project/MutationAnalysis/Nimrod/results/figures/fc"
     os.makedirs(plots_dir, exist_ok=True)
