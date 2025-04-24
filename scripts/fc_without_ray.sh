@@ -15,4 +15,4 @@ source /home/grnimrod/miniforge3/etc/profile.d/conda.sh
 conda activate mutation-probs-nn
 
 # Run the Python script
-python /faststorage/project/MutationAnalysis/Nimrod/src/train_fc.py --data_version 3fA
+python /faststorage/project/MutationAnalysis/Nimrod/src/train_fc.py --data_version 3sA
