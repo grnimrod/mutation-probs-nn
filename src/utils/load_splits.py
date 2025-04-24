@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 
-def load_splits(data_version):
+def load_splits(data_version, convert_to_tensor=True):
     """
     Load specified version of splits for model training
     """
@@ -32,5 +32,10 @@ def load_splits(data_version):
     splits = ["X_train", "y_train", "X_val", "y_val", "X_test", "y_test"]
     filepaths = [os.path.join(filepath, folder, f"{split}_{suffix}.npy") for split in splits]
 
-    tensors = [torch.as_tensor(np.load(file), dtype=torch.float32) for file in filepaths]
-    return tuple(tensors)
+    if convert_to_tensor:
+        tensors = [torch.as_tensor(np.load(file), dtype=torch.float32) for file in filepaths]
+        return tuple(tensors)
+    
+    if not convert_to_tensor:
+        arrays = [np.load(file) for file in filepaths]
+        return tuple(arrays)
