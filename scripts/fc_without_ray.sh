@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=8
 #SBATCH --cpus-per-task=1
-#SBATCH --time=02:00:00
+#SBATCH --time=04:00:00
 
 source /home/grnimrod/miniforge3/etc/profile.d/conda.sh
 
@@ -15,4 +15,4 @@ source /home/grnimrod/miniforge3/etc/profile.d/conda.sh
 conda activate mutation-probs-nn
 
 # Run the Python script
-python /faststorage/project/MutationAnalysis/Nimrod/src/train_fc.py --data_version 3sA
+python /faststorage/project/MutationAnalysis/Nimrod/src/train_fc.py --data_version 3sC
