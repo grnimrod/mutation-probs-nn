@@ -9,6 +9,7 @@ from datetime import datetime
 import argparse
 
 from utils.load_splits import load_splits
+from model_definitions import FullyConnectedNN
 
 
 def train_fc(data_version):
@@ -33,34 +34,36 @@ def train_fc(data_version):
     print(f"Example feature: {feature}\nexample label: {label}")
 
     # Set up network architecture
-    class FullyConnectedNN(nn.Module):
-        def __init__(self):
-            super().__init__()
+    # class FullyConnectedNN(nn.Module):
+    #     def __init__(self):
+    #         super().__init__()
 
-            self.linear_relu_seq = nn.Sequential(
-                nn.LazyLinear(128),
-                nn.ReLU(),
-                # nn.Dropout(p=0.3),
-                nn.LazyLinear(64),
-                nn.ReLU(),
-                # nn.Dropout(p=0.3),
-                nn.LazyLinear(4)
-            )
+    #         self.linear_relu_seq = nn.Sequential(
+    #             nn.LazyLinear(128),
+    #             nn.ReLU(),
+    #             # nn.Dropout(p=0.3),
+    #             nn.LazyLinear(64),
+    #             nn.ReLU(),
+    #             # nn.Dropout(p=0.3),
+    #             nn.LazyLinear(4)
+    #         )
         
-        def forward(self, x):
-            x = self.linear_relu_seq(x)
-            return x
+    #     def forward(self, x):
+    #         x = self.linear_relu_seq(x)
+    #         return x
         
-        def predict_proba(self, x):
-            logits = self.linear_relu_seq(x)
-            return F.softmax(logits, dim=-1)
+    #     def predict_proba(self, x):
+    #         logits = self.linear_relu_seq(x)
+    #         return F.softmax(logits, dim=-1)
 
 
     # Set model parameters
     lr = 0.001
     epochs = 100
-    bs = 64
+    bs = 512
     train_losses, val_losses = [], []
+
+    print(f"Parameter values:\nlr: {lr},\nbatch size: {bs}")
 
     model = FullyConnectedNN()
     with torch.no_grad():
@@ -122,6 +125,10 @@ def train_fc(data_version):
 
         print(f"Epoch {epoch + 1}/{epochs} train loss: {train_loss:.6f} val loss: {val_loss:.6f}")
 
+    model_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/models/fc/{data_version}"
+    os.makedirs(model_dir, exist_ok=True)
+    torch.save(model.state_dict(), f"{model_dir}/model.pth")
+
 
     plots_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/figures/fc/{data_version}"
     os.makedirs(plots_dir, exist_ok=True)
@@ -129,10 +136,11 @@ def train_fc(data_version):
     plt.plot(train_losses, label="Training loss")
     plt.plot(val_losses, label="Validation loss")
     plt.legend()
-    plt.title(f"Loss over epochs\tdata version: {data_version}")
+    plt.title(f"Loss over epochs (data version: {data_version})")
     plt.xlabel("Epoch")
     plt.ylabel("Cross Entropy Loss")
     timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
+    print(f"Figure timestamp: {timestamp}")
     plt.savefig(f"{plots_dir}/loss_curves_fc_{timestamp}.png")
     plt.close()
 
