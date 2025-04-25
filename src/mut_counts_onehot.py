@@ -69,7 +69,7 @@ def counts_model(data_version):
 
 
     model = KmerMutationModel(mutation_counts)
-    pred = model.predict("AAA")
+    pred = model.predict("ACA")
     print(pred)
 
     print("Log loss over validation set:", evaluate_model(model, val_df))
