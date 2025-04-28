@@ -12,6 +12,8 @@ def counts_model(data_version):
     X_train, y_train, X_val, y_val, X_test, y_test = load_splits(data_version, convert_to_tensor=False)
 
     def decode_kmer(kmer):
+        """Transform one-hot encoded version back to labels"""
+        
         kmer_length = kmer.shape[1] // 4
         reshaped = kmer.reshape(-1, kmer_length, 4)
         indices = np.argmax(reshaped, axis=2)
