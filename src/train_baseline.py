@@ -1,6 +1,6 @@
 import os
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import accuracy_score, log_loss, confusion_matrix, ConfusionMatrixDisplay
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
@@ -26,16 +26,23 @@ def train_baseline(data_version):
     y_val = direct_encode(y_val)
     y_test = direct_encode(y_test)
 
+    print("Label examples:", y_val[:5])
+    print("Label shape", y_val.shape)
+
     rf = RandomForestClassifier()
     rf.fit(X_train, y_train)
 
     class_probs = rf.predict_proba(X_val)
     print("Example probability distributions: ", class_probs[:5]) # Probability distribution of mutations of first five samples in X_val
 
-    y_pred = rf.predict(X_val)
+    y_pred = rf.predict(X_val) # Predicts label, not distribution
 
     accuracy = accuracy_score(y_val, y_pred)
     print("Accuracy: ", accuracy)
+
+    # Log likelihood of the validation set
+    loss = log_loss(y_val, class_probs)
+    print(f"Log loss: {loss}")
 
     plots_dir = "/faststorage/project/MutationAnalysis/Nimrod/results/figures/baseline"
     os.makedirs(plots_dir, exist_ok=True)
@@ -48,7 +55,9 @@ def train_baseline(data_version):
     plt.close()
     print("Confusion matrix saved to file")
 
-    dump(rf, "/faststorage/project/MutationAnalysis/Nimrod/results/models/baseline_rf.joblib") # TODO: model name should reflect data version
+    model_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/models/baseline/{data_version}"
+    os.makedirs(model_dir, exist_ok=True)
+    dump(rf, f"{model_dir}/baseline_rf.joblib")
 
 
 if __name__ == "__main__":
