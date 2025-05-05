@@ -1,3 +1,4 @@
+import os
 import argparse
 
 from utils.load_splits import load_splits
@@ -15,7 +16,7 @@ def train_counts_model(data_version):
 
     print(f"Version of the data: {data_version}")
 
-    X_train, y_train, X_val, y_val, X_test, y_test = load_splits(data_version, convert_to_tensor=False)
+    X_train, _, y_train, X_val, _, y_val, X_test, _, y_test = load_splits(data_version, convert_to_tensor=False)
 
     X_train = decode_kmer(X_train)
     y_train = decode_kmer(y_train)
@@ -35,7 +36,10 @@ def train_counts_model(data_version):
 
     print("Log loss over validation set:", model.evaluate(X_val, y_val))
 
-    # TODO: save model
+    model_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/models/counts_benchmark/{data_version}"
+    os.makedirs(model_dir, exist_ok=True)
+    model.save(f"{model_dir}/model.pkl")
+    print(f"Model saved to {model_dir}")
 
 
 if __name__ == "__main__":
