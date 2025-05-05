@@ -2,14 +2,12 @@ import os
 import torch
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
-import torch.nn.functional as F
-import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 import argparse
 
 from utils.load_splits import load_splits
-from model_definitions import FullyConnectedNN
+from model_definitions import FCNNEmbedding
 
 
 def train_fc(data_version):
@@ -19,7 +17,27 @@ def train_fc(data_version):
 
     print(f"Version of the data: {data_version}")
 
-    X_train, y_train, X_val, y_val, X_test, y_test = load_splits(data_version)
+    X_train, _, y_train, X_val, _, y_val, X_test, _, y_test = load_splits(data_version)
+    # print(X_train.shape)
+
+    def onehot_to_indexed_kmers(onehot_data):
+        """
+        Function to convert one-hot encoding to integer encoding for nn.Embedding()
+        by reshaping k-mer to (data_size, kmer_length, mut_outcomes=4) then taking
+        argmax
+        """
+
+        data_size = onehot_data.size(0)
+        kmer_length = onehot_data.size(1) // 4
+
+        reshaped = onehot_data.view(data_size, kmer_length, 4)
+
+        indexed = reshaped.argmax(dim=2)
+        return indexed.long()
+    
+    X_train = onehot_to_indexed_kmers(X_train)
+    X_val = onehot_to_indexed_kmers(X_val)
+    X_test = onehot_to_indexed_kmers(X_test)
 
     y_train = torch.argmax(y_train, dim=1).long()
     y_val = torch.argmax(y_val, dim=1).long()
@@ -41,7 +59,8 @@ def train_fc(data_version):
 
     print(f"Parameter values:\nlr: {lr},\nbatch size: {bs}")
 
-    model = FullyConnectedNN()
+    model = FCNNEmbedding(num_embeddings=4, embedding_dim=32) # TODO: try 32 with 7-mers and up
+    print(f"Embedding dimension: {model.embedding}")
     with torch.no_grad():
         model(X_train[:2]) # So that weights are initialized before moving model to different device (required due to use of LazyLinear)
 
@@ -54,7 +73,7 @@ def train_fc(data_version):
     model.to(device)
     print(f"Using device: {device}")
 
-    opt = optim.Adam(model.parameters(), lr=lr) # TODO: possibly add weight decay
+    opt = optim.Adam(model.parameters(), lr=lr) # TODO: possibly add weight decay (weight_decay=1e-4)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, mode='min', patience=3, factor=0.5, verbose=True)
 
     # Wrap DataLoader iterator around our custom dataset(s)
