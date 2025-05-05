@@ -39,11 +39,12 @@ def load_splits(data_version, convert_to_tensor=True):
     folder = version_map[data_version]
     suffix = folder # Suffix is the same as the folder name
 
-    splits = ["X_train", "y_train", "X_val", "y_val", "X_test", "y_test"]
+    splits = ["X_local_train", "X_region_train", "y_train", "X_local_val", "X_region_val", "y_val", "X_local_test", "X_region_test", "y_test"]
     filepaths = [os.path.join(filepath, folder, f"{split}_{suffix}.npy") for split in splits]
 
     if convert_to_tensor:
-        tensors = [torch.as_tensor(np.load(file), dtype=torch.float32) for file in filepaths]
+        tensors = [torch.as_tensor(np.load(file), dtype=torch.float32) for file in filepaths] # Use this line if using avg mut rate as expanded feature
+        # tensors = [torch.as_tensor(np.load(file), dtype=torch.float32) if "region" not in file else torch.as_tensor(np.load(file), dtype=torch.long) for file in filepaths] # Use this line if using position label as expanded feature
         return tuple(tensors)
     
     if not convert_to_tensor:
