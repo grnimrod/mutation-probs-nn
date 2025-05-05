@@ -1,4 +1,5 @@
 import pandas as pd
+import torch
 from torch import nn
 import torch.nn.functional as F
 from sklearn.metrics import log_loss
@@ -52,23 +53,139 @@ class KmerCountsModel:
 
 
 class FullyConnectedNN(nn.Module):
-        def __init__(self):
-            super().__init__()
+    def __init__(self):
+        super().__init__()
 
-            self.linear_relu_seq = nn.Sequential(
-                nn.LazyLinear(128),
-                nn.ReLU(),
-                # nn.Dropout(p=0.3),
-                nn.LazyLinear(64),
-                nn.ReLU(),
-                # nn.Dropout(p=0.3),
-                nn.LazyLinear(4)
-            )
-        
-        def forward(self, x):
-            x = self.linear_relu_seq(x)
-            return x
-        
-        def predict_proba(self, x):
-            logits = self.linear_relu_seq(x)
-            return F.softmax(logits, dim=-1)
+        self.linear_relu_seq = nn.Sequential(
+            nn.LazyLinear(128),
+            nn.ReLU(),
+            nn.LazyLinear(64),
+            nn.ReLU(),
+            nn.LazyLinear(4)
+        )
+    
+    def forward(self, x):
+        x = self.linear_relu_seq(x)
+        return x
+    
+    def predict_proba(self, x):
+        logits = self.linear_relu_seq(x)
+        return F.softmax(logits, dim=-1)
+
+
+class FCNNEmbedding(nn.Module):
+    def __init__(self, num_embeddings, embedding_dim):
+        super().__init__()
+
+        self.embedding = nn.Embedding(num_embeddings=num_embeddings, embedding_dim=embedding_dim)
+        self.flatten = nn.Flatten()
+
+        self.linear_relu_seq = nn.Sequential(
+            nn.LazyLinear(128),
+            nn.ReLU(),
+            nn.LazyLinear(64),
+            nn.ReLU(),
+            nn.LazyLinear(4)
+        )
+    
+    def forward(self, x):
+        x = self.embedding(x)
+        x = self.flatten(x)
+        x = self.linear_relu_seq(x)
+        return x
+    
+    def predict_proba(self, x):
+        logits = self.forward(x)
+        return F.softmax(logits, dim=-1)
+
+
+class CombinedNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.linear_relu_seq = nn.Sequential(
+            nn.LazyLinear(128), nn.ReLU(),
+            # nn.Dropout(p=0.3),
+            nn.LazyLinear(64), nn.ReLU(),
+            # nn.Dropout(p=0.3),
+            nn.LazyLinear(4)
+        )
+
+    def forward(self, local_feature, expanded_feature):
+        x = torch.concat([local_feature, expanded_feature], dim=1)
+        x = self.linear_relu_seq(x)
+        return x
+
+    def predict_proba(self, context_vec, bin_id):
+        logits = self.forward(context_vec, bin_id)
+        return F.softmax(logits, dim=-1)
+
+
+class LocalModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.linear_relu_seq = nn.Sequential(
+            nn.LazyLinear(128), nn.ReLU(),
+            # nn.Dropout(p=0.3),
+            nn.LazyLinear(32)
+        )
+    
+    def forward(self, x):
+        x = self.linear_relu_seq(x)
+        return x
+
+
+class ExpandedModule(nn.Module):
+    def __init__(self, num_embeddings, embedding_dim):
+        super().__init__()
+
+        self.embedding = nn.Embedding(num_embeddings, embedding_dim)
+        self.flatten = nn.Flatten()
+
+        self.linear_relu_seq = nn.Sequential(
+            nn.LazyLinear(128), nn.ReLU(),
+            # nn.Dropout(p=0.3),
+            nn.LazyLinear(32)
+        )
+
+    def forward(self, x):
+        x = self.embedding(x)
+        x = self.flatten(x)
+        x = self.linear_relu_seq(x)
+        return x
+
+
+class CombinedMLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim=64, output_dim=4):
+        super().__init__()
+        self.seq = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
+
+    def forward(self, x):
+        return self.seq(x)
+
+
+class MixedInputModel(nn.Module):
+    def __init__(self, local_model, expanded_model, mixed_model):
+        super().__init__()
+
+        self.local_model = local_model
+        self.expanded_model = expanded_model
+        self.mixed_model = mixed_model
+
+    def forward(self, x):
+        x_local, x_region = x
+
+        local_out = self.local_model(x_local)
+        expanded_out = self.expanded_model(x_region)
+
+        x_combined = torch.cat((local_out, expanded_out), dim=1)
+        return self.mixed_model(x_combined)
+    
+    def predict_proba(self, x):
+        logits = self.forward(x)
+        return F.softmax(logits, dim=-1)
