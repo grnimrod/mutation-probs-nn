@@ -8,6 +8,7 @@ import argparse
 
 from utils.load_splits import load_splits
 from model_definitions import FCNNEmbedding
+from utils.early_stopping import EarlyStopping
 
 
 def train_fc(data_version):
@@ -56,6 +57,8 @@ def train_fc(data_version):
     epochs = 100
     bs = 512
     train_losses, val_losses = [], []
+
+    early_stopping = EarlyStopping()
 
     print(f"Parameter values:\nlr: {lr},\nbatch size: {bs}")
 
@@ -119,11 +122,17 @@ def train_fc(data_version):
         # scheduler.step(val_loss)
 
         print(f"Epoch {epoch + 1}/{epochs} train loss: {train_loss:.6f} val loss: {val_loss:.6f}")
+        
+        early_stopping(val_loss, model)
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
+
+    early_stopping.load_best_model(model)
 
     model_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/models/fc/{data_version}"
     os.makedirs(model_dir, exist_ok=True)
     torch.save(model.state_dict(), f"{model_dir}/model.pth")
-
 
     plots_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/figures/fc/{data_version}"
     os.makedirs(plots_dir, exist_ok=True)
