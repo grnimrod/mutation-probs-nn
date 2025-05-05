@@ -8,9 +8,11 @@ import argparse
 def preprocess_data(tsv_data, train_ratio=0.7, random_state=42):
     """
     Preprocessing function. Takes in tsv file, one-hot encodes
-    feature and label columns, then creates train val test
-    feature and label arrays separately, six files in total.
-    Handles experiment files separated from regular files.
+    local feature and label columns, takes expanded feature as
+    average mutation rate in the bin, then creates train val test
+    local feature, expanded feature and label arrays separately,
+    nine files in total. Handles experiment files separated from
+    regular files.
     """
 
     # Read in tsv file
@@ -19,44 +21,45 @@ def preprocess_data(tsv_data, train_ratio=0.7, random_state=42):
     # Create train val test splits
     train_dataset, temp_dataset = train_test_split(df, train_size=train_ratio, random_state=random_state, stratify=df["mut"])
     val_dataset, test_dataset = train_test_split(temp_dataset, test_size=0.5, random_state=random_state, stratify=temp_dataset["mut"])
-
-    # One-hot encode
-    alphabet = {
-        'A': [1, 0, 0, 0],
-        'C': [0, 1, 0, 0],
-        'G': [0, 0, 1, 0],
-        'T': [0, 0, 0, 1]
-        }
-
+    
     def one_hot_encode(dataframe):
-        # Initialize empty lists for results
-        kmer_list = []
-        res_list = []
-
-        for index in range(len(dataframe)):
-            kmer = dataframe.iloc[index]["context"]
-            kmer_encoded = np.array([alphabet[nucl] for nucl in kmer])
-            kmer_list.append(kmer_encoded.flatten())
-
-            res = dataframe.iloc[index]["type"][-1]
-            res_encoded = np.array(alphabet[res])
-            res_list.append(res_encoded)
+        # Convert arrays to 2D arrays of characters ("ACA" -> ["A", "C", "A"])
+        kmer_array = np.array([list(kmer) for kmer in dataframe["context"].to_numpy()]) # to_numpy(): np representation of the column
         
-        X = np.array(kmer_list)
-        y = np.array(res_list)
+        vocab = np.array(["A", "C", "G", "T"])
+        char_to_index = {char: idx for idx, char in enumerate(vocab)}
 
+        # Map characters to indices
+        index_array = np.vectorize(char_to_index.get)(kmer_array) # np.vectorize takes a function and applies it to every element of an array
+
+        # One-hot encode indices
+        X = np.eye(4)[index_array] # np.eye(4) is a 4x4 identity matrix
+
+        X = X.reshape(X.shape[0], -1)
+
+        res_char = np.vectorize(char_to_index.get)(dataframe["mut_res"].to_numpy())
+        y = np.eye(4)[res_char]
+        
         return X, y
 
-    X_train, y_train = one_hot_encode(train_dataset)
-    X_val, y_val = one_hot_encode(val_dataset)
-    X_test, y_test = one_hot_encode(test_dataset)
+
+    X_local_train, y_train = one_hot_encode(train_dataset)
+    X_local_val, y_val = one_hot_encode(val_dataset)
+    X_local_test, y_test = one_hot_encode(test_dataset)
+
+    # array_total_length = len(y_train) + len(y_val) + len(y_test)
+    # print(f"Total length of splits: {array_total_length}")
+
+    X_region_train = train_dataset["avg_mut_1mb"].to_numpy()
+    X_region_val = val_dataset["avg_mut_1mb"].to_numpy()
+    X_region_test = test_dataset["avg_mut_1mb"].to_numpy()
     
     # Save one-hot encoded splits
     filepath = "/faststorage/project/MutationAnalysis/Nimrod/data/splits"
     os.makedirs(filepath, exist_ok=True)
 
-    splitnames = ["X_train", "y_train", "X_val", "y_val", "X_test", "y_test"]
-    splits = [X_train, y_train, X_val, y_val, X_test, y_test]
+    splitnames = ["X_local_train", "X_region_train", "y_train", "X_local_val", "X_region_val", "y_val", "X_local_test", "X_region_test", "y_test"]
+    splits = [X_local_train, X_region_train, y_train, X_local_val, X_region_val, y_val, X_local_test, X_region_test, y_test]
 
     # Naming convention
     if "experiment" not in tsv_data:
