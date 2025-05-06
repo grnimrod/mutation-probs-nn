@@ -1,6 +1,6 @@
 import os
+import re
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
 import pandas as pd
 import numpy as np
 import argparse
@@ -19,11 +19,15 @@ def preprocess_data(tsv_data, train_ratio=0.7, random_state=42):
     # Read in tsv file
     df = pd.read_csv(tsv_data, sep="\t")
 
-    # print(f"Dataframe length: {len(df)}")
-
     # Encode mb_bin column to integer labels
-    label_encoder = LabelEncoder()
-    df["mb_bin_enc"] = label_encoder.fit_transform(df["mb_bin"])
+    def natural_key(s):
+        return [int(text) if text.isdigit() else text for text in re.split(r'(\d+)', s)] # Transforms chr10_3 into ['chr', 10, '_', 3, ''], with digits being integers to have natural sorting instead of lexicographical
+
+    sorted_bins = sorted(df["mb_bin"].unique(), key=natural_key)
+
+    label_map = {bin: index for index, bin in enumerate(sorted_bins)}
+
+    df["mb_bin_id"] = df["mb_bin"].map(label_map)
 
     # Create train val test splits
     train_dataset, temp_dataset = train_test_split(df, train_size=train_ratio, random_state=random_state, stratify=df["mut"])
@@ -54,12 +58,9 @@ def preprocess_data(tsv_data, train_ratio=0.7, random_state=42):
     X_local_val, y_val = one_hot_encode(val_dataset)
     X_local_test, y_test = one_hot_encode(test_dataset)
 
-    # array_total_length = len(y_train) + len(y_val) + len(y_test)
-    # print(f"Total length of splits: {array_total_length}")
-
-    X_region_train = train_dataset["mb_bin_enc"].to_numpy()
-    X_region_val = val_dataset["mb_bin_enc"].to_numpy()
-    X_region_test = test_dataset["mb_bin_enc"].to_numpy()
+    X_region_train = train_dataset["mb_bin_id"].to_numpy()
+    X_region_val = val_dataset["mb_bin_id"].to_numpy()
+    X_region_test = test_dataset["mb_bin_id"].to_numpy()
     
     # Save one-hot encoded splits
     filepath = "/faststorage/project/MutationAnalysis/Nimrod/data/splits"
