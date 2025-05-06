@@ -14,24 +14,25 @@ from utils.early_stopping import EarlyStopping
 def train_combined(data_version):
     """
     Train model on input where two features are
-    concatenated
+    concatenated and the expanded feature is the
+    average mutation rate per bin
     """
 
     print("Training with both the sequence context and expanded region as features")
     print(f"Version of the data: {data_version}")
 
-    X_local_train, X_region_train, y_train, X_local_val, X_region_val, y_val, X_local_test, X_region_test, y_test = load_splits(data_version)
+    X_local_train, X_region_train, y_train, X_local_val, X_region_val, y_val, _, _, _ = load_splits(data_version)
 
     X_region_train = X_region_train.unsqueeze(1)
     X_region_val = X_region_val.unsqueeze(1)
-    X_region_test = X_region_test.unsqueeze(1)
+    # X_region_test = X_region_test.unsqueeze(1)
 
     print(f"X_local_train shape: {X_local_train.shape}")
     print(f"X_region_train shape: {X_region_train.shape}")
 
     train_dataset = TensorDataset(X_local_train, X_region_train, y_train)
     val_dataset = TensorDataset(X_local_val, X_region_val, y_val)
-    test_dataset = TensorDataset(X_local_test, X_region_test, y_test)
+    # test_dataset = TensorDataset(X_local_test, X_region_test, y_test)
 
     lr = 0.001
     epochs = 100
@@ -45,7 +46,7 @@ def train_combined(data_version):
     model = CombinedNN()
 
     with torch.no_grad():
-        model(X_local_train[:2], X_region_train[:2])
+        model(X_local_train[:2], X_region_train[:2]) # Model concatenates two input features internally
     
     # Choose device
     device = "cpu"
@@ -97,11 +98,11 @@ def train_combined(data_version):
 
     early_stopping.load_best_model(model)
 
-    model_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/models/combined/{data_version}"
+    model_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/models/combined_mut_rate/{data_version}"
     os.makedirs(model_dir, exist_ok=True)
     torch.save(model.state_dict(), f"{model_dir}/model.pth")
 
-    plots_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/figures/combined/{data_version}"
+    plots_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/figures/combined_mut_rate/{data_version}"
     os.makedirs(plots_dir, exist_ok=True)
 
     plt.plot(train_losses, label="Training loss")
