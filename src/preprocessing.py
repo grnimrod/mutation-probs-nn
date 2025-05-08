@@ -1,4 +1,5 @@
 import os
+import re
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
@@ -7,16 +8,39 @@ import argparse
 
 def preprocess_data(tsv_data, train_ratio=0.7, random_state=42):
     """
-    Preprocessing function. Takes in tsv file, one-hot encodes
-    local feature and label columns, takes expanded feature as
-    average mutation rate in the bin, then creates train val test
-    local feature, expanded feature and label arrays separately,
-    nine files in total. Handles experiment files separated from
-    regular files.
+    Preprocessing function. Takes in tsv file as dataframe, creates bin ID
+    columns over specified bin sizes, creates average mutation rate per bin
+    columns, splits dataframe into train val test, one-hot encodes local
+    context feature and label arrays, then saves all arrays created.
+    Handles experiment files separated from regular files.
     """
 
     # Read in tsv file
     df = pd.read_csv(tsv_data, sep="\t")
+
+    # Encode mb_bin column to integer labels
+    def natural_key(s):
+        """
+        Helper function to be used as key for natural sorting
+        """
+        return [int(text) if text.isdigit() else text for text in re.split(r'(\d+)', s)] # Transforms chr10_3 into ['chr', 10, '_', 3, ''], with digits being integers
+
+    bins = ["100kb", "500kb", "1mb"] # Specify
+    bin_sizes = [100_000, 500_000, 1_000_000]
+
+    # Create derived feature columns
+    for label, size in zip(bins, bin_sizes):
+        # Create bins
+        df[f"bin_{label}"] = df["chrom"] + "_" + (df["pos"] // size).astype(str)
+
+        sorted_bins = sorted(df[f"bin_{label}"].unique(), key=natural_key)
+        label_map = {bin: index for index, bin in enumerate(sorted_bins)}
+
+        # Integer encode bins
+        df[f"bin_id_{label}"] = df[f"bin_{label}"].map(label_map)
+
+        # Compute average mutation rates in bins
+        df[f"avg_mut_{label}"] = df.groupby(f"bin_id_{label}")["mut"].transform("mean")
 
     # Create train val test splits
     train_dataset, temp_dataset = train_test_split(df, train_size=train_ratio, random_state=random_state, stratify=df["mut"])
@@ -42,24 +66,28 @@ def preprocess_data(tsv_data, train_ratio=0.7, random_state=42):
         
         return X, y
 
-
     X_local_train, y_train = one_hot_encode(train_dataset)
     X_local_val, y_val = one_hot_encode(val_dataset)
     X_local_test, y_test = one_hot_encode(test_dataset)
 
-    # array_total_length = len(y_train) + len(y_val) + len(y_test)
-    # print(f"Total length of splits: {array_total_length}")
+    splitnames = ["X_local_train", "y_train", "X_local_val", "y_val", "X_local_test", "y_test"]
+    splits = [X_local_train, y_train, X_local_val, y_val, X_local_test, y_test]
 
-    X_region_train = train_dataset["avg_mut_1mb"].to_numpy()
-    X_region_val = val_dataset["avg_mut_1mb"].to_numpy()
-    X_region_test = test_dataset["avg_mut_1mb"].to_numpy()
+    for bin_size in bins:
+        for split_name, dataset in zip(["train", "val", "test"], [train_dataset, val_dataset, test_dataset]):
+
+            # Add bin id columns to splits to be saved
+            split_bin_id = f"X_bin_id_{bin_size}_{split_name}"
+            splitnames.append(split_bin_id)
+            splits.append(dataset[f"bin_id_{bin_size}"].to_numpy())
+
+            # Add avg mut rate columns to splits to be saved
+            split_avg_mut = f"X_avg_mut_{bin_size}_{split_name}"
+            splitnames.append(split_avg_mut)
+            splits.append(dataset[f"avg_mut_{bin_size}"].to_numpy())
     
-    # Save one-hot encoded splits
     filepath = "/faststorage/project/MutationAnalysis/Nimrod/data/splits"
     os.makedirs(filepath, exist_ok=True)
-
-    splitnames = ["X_local_train", "X_region_train", "y_train", "X_local_val", "X_region_val", "y_val", "X_local_test", "X_region_test", "y_test"]
-    splits = [X_local_train, X_region_train, y_train, X_local_val, X_region_val, y_val, X_local_test, X_region_test, y_test]
 
     # Naming convention
     if "experiment" not in tsv_data:
