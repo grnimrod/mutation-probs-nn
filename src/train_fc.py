@@ -18,7 +18,7 @@ def train_fc(data_version):
 
     print(f"Version of the data: {data_version}")
 
-    X_train, _, y_train, X_val, _, y_val, X_test, _, y_test = load_splits(data_version)
+    X_local_train, y_train, X_local_val, y_val = load_splits(data_version, requested_splits=["train", "val"])
     # print(X_train.shape)
 
     def onehot_to_indexed_kmers(onehot_data):
@@ -36,17 +36,14 @@ def train_fc(data_version):
         indexed = reshaped.argmax(dim=2)
         return indexed.long()
     
-    X_train = onehot_to_indexed_kmers(X_train)
-    X_val = onehot_to_indexed_kmers(X_val)
-    X_test = onehot_to_indexed_kmers(X_test)
+    X_train = onehot_to_indexed_kmers(X_local_train)
+    X_val = onehot_to_indexed_kmers(X_local_val)
 
     y_train = torch.argmax(y_train, dim=1).long()
     y_val = torch.argmax(y_val, dim=1).long()
-    y_test = torch.argmax(y_test, dim=1).long()
 
     train_dataset = TensorDataset(X_train, y_train)
     val_dataset = TensorDataset(X_val, y_val)
-    test_dataset = TensorDataset(X_test, y_test)
 
     # Inspect example feature-label pair
     feature, label = train_dataset[100]
@@ -82,7 +79,6 @@ def train_fc(data_version):
     # Wrap DataLoader iterator around our custom dataset(s)
     train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=bs, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=bs, shuffle=False)
 
     loss_func = nn.CrossEntropyLoss()
 

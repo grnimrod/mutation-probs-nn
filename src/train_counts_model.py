@@ -16,14 +16,12 @@ def train_counts_model(data_version):
 
     print(f"Version of the data: {data_version}")
 
-    X_train, _, y_train, X_val, _, y_val, X_test, _, y_test = load_splits(data_version, convert_to_tensor=False)
+    X_local_train, y_train, X_local_val, y_val = load_splits(data_version, requested_splits=["train", "val"], convert_to_tensor=False)
 
-    X_train = decode_kmer(X_train)
+    X_train = decode_kmer(X_local_train)
     y_train = decode_kmer(y_train)
-    X_val = decode_kmer(X_val)
+    X_val = decode_kmer(X_local_val)
     y_val = decode_kmer(y_val)
-    X_test = decode_kmer(X_test)
-    y_test = decode_kmer(y_test)
 
     print("Examples of labels:", y_train[:5])
 
