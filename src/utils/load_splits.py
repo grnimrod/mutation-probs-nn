@@ -3,9 +3,11 @@ import numpy as np
 import torch
 
 
-def load_splits(data_version, convert_to_tensor=True):
+def load_splits(data_version: str, requested_splits: list, bin_size: str = None, requested_features: list = None, convert_to_tensor: bool = True):
     """
-    Load specified version of splits for model training
+    Load specified version of splits for model training.
+    Order of the files returned: X_local_split, X_derived_split, y_split
+    'split' should follow 'train', 'val', 'test' order
     """
 
     filepath = "/faststorage/project/MutationAnalysis/Nimrod/data/splits/"
@@ -36,15 +38,35 @@ def load_splits(data_version, convert_to_tensor=True):
     if data_version not in version_map:
         raise ValueError(f"Invalid file version specification: {data_version}")
     
+    if requested_features is None:
+        requested_features = []
+    
+    if requested_features:
+        if bin_size not in ["100kb", "500kb", "1mb"]:
+            raise ValueError("Non-existent size specification")
+    
+    allowed_features = {"bin_id", "avg_mut"}
+    if not set(requested_features).issubset(allowed_features):
+        raise ValueError(f"Invalid feature(s) requested: {set(requested_features) - allowed_features}")
+    
+    allowed_splits = {"train", "val", "test"}
+    if not set(requested_splits).issubset(allowed_splits):
+        raise ValueError(f"Invalid split(s) requested: {set(requested_splits) - allowed_splits}")
+    
     folder = version_map[data_version]
     suffix = folder # Suffix is the same as the folder name
 
-    splits = ["X_local_train", "X_region_train", "y_train", "X_local_val", "X_region_val", "y_val", "X_local_test", "X_region_test", "y_test"]
+    splits = []
+    for split_name in requested_splits:
+        splits.append(f"X_local_{split_name}")
+        for feature in requested_features:
+                splits.append(f"X_{feature}_{bin_size}_{split_name}")
+        splits.append(f"y_{split_name}")
+
     filepaths = [os.path.join(filepath, folder, f"{split}_{suffix}.npy") for split in splits]
 
     if convert_to_tensor:
-        tensors = [torch.as_tensor(np.load(file), dtype=torch.float32) for file in filepaths] # Use this line if using avg mut rate as expanded feature
-        # tensors = [torch.as_tensor(np.load(file), dtype=torch.float32) if "region" not in file else torch.as_tensor(np.load(file), dtype=torch.long) for file in filepaths] # Use this line if using position label as expanded feature
+        tensors = [torch.as_tensor(np.load(file), dtype=torch.float32) if "bin_id" not in file else torch.as_tensor(np.load(file), dtype=torch.long) for file in filepaths] # Embedding requires 'long' type
         return tuple(tensors)
     
     if not convert_to_tensor:
