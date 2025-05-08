@@ -21,18 +21,17 @@ def train_combined(data_version):
     print("Training with both the sequence context and expanded region as features")
     print(f"Version of the data: {data_version}")
 
-    X_local_train, X_region_train, y_train, X_local_val, X_region_val, y_val, _, _, _ = load_splits(data_version)
+    X_local_train, X_avg_mut_1mb_train, y_train, X_local_val, X_avg_mut_1mb_val, y_val = load_splits(data_version, requested_splits=["train", "val"], bin_size="1mb", requested_features=["avg_mut"])
 
-    X_region_train = X_region_train.unsqueeze(1)
-    X_region_val = X_region_val.unsqueeze(1)
+    X_avg_mut_1mb_train = X_avg_mut_1mb_train.unsqueeze(1)
+    X_avg_mut_1mb_val = X_avg_mut_1mb_val.unsqueeze(1)
     # X_region_test = X_region_test.unsqueeze(1)
 
     print(f"X_local_train shape: {X_local_train.shape}")
-    print(f"X_region_train shape: {X_region_train.shape}")
+    print(f"X_avg_mut_1mb_train shape: {X_avg_mut_1mb_train.shape}")
 
-    train_dataset = TensorDataset(X_local_train, X_region_train, y_train)
-    val_dataset = TensorDataset(X_local_val, X_region_val, y_val)
-    # test_dataset = TensorDataset(X_local_test, X_region_test, y_test)
+    train_dataset = TensorDataset(X_local_train, X_avg_mut_1mb_train, y_train)
+    val_dataset = TensorDataset(X_local_val, X_avg_mut_1mb_val, y_val)
 
     lr = 0.001
     epochs = 100
@@ -46,7 +45,7 @@ def train_combined(data_version):
     model = CombinedNN()
 
     with torch.no_grad():
-        model(X_local_train[:2], X_region_train[:2]) # Model concatenates two input features internally
+        model(X_local_train[:2], X_avg_mut_1mb_train[:2]) # Model concatenates two input features internally
     
     # Choose device
     device = "cpu"
@@ -108,7 +107,7 @@ def train_combined(data_version):
     plt.plot(train_losses, label="Training loss")
     plt.plot(val_losses, label="Validation loss")
     plt.legend()
-    plt.title(f"Loss over epochs (data version: {data_version})\nWeight decay, dropout")
+    plt.title(f"Loss over epochs (data version: {data_version})\nWeight decay")
     plt.xlabel("Epoch")
     plt.ylabel("Cross Entropy Loss")
     timestamp = datetime.now().strftime("%m-%d_%H-%M-%S")
