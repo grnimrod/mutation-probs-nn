@@ -40,11 +40,17 @@ def preprocess_data(tsv_data, train_ratio=0.7, random_state=42):
         df[f"bin_id_{label}"] = df[f"bin_{label}"].map(label_map)
 
         # Compute average mutation rates in bins
-        df[f"avg_mut_{label}"] = df.groupby(f"bin_id_{label}")["mut"].transform("mean")
+        # df[f"avg_mut_{label}"] = df.groupby(f"bin_id_{label}")["mut"].transform("mean")
 
     # Create train val test splits
     train_dataset, temp_dataset = train_test_split(df, train_size=train_ratio, random_state=random_state, stratify=df["mut"])
     val_dataset, test_dataset = train_test_split(temp_dataset, test_size=0.5, random_state=random_state, stratify=temp_dataset["mut"])
+
+    # Compute average mutation rate per bin feature separately for the splits
+    for label, size in zip(bins, bin_sizes):
+        train_dataset[f"avg_mut_{label}"] = train_dataset.groupby(f"bin_id_{label}")["mut"].transform("mean")
+        val_dataset[f"avg_mut_{label}"] = val_dataset.groupby(f"bin_id_{label}")["mut"].transform("mean")
+        test_dataset[f"avg_mut_{label}"] = test_dataset.groupby(f"bin_id_{label}")["mut"].transform("mean")
     
     def one_hot_encode(dataframe):
         # Convert arrays to 2D arrays of characters ("ACA" -> ["A", "C", "A"])
