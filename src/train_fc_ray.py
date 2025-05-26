@@ -238,6 +238,9 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
         key=lambda x: x[1]["val_loss"].min()
     )[:3]
 
+    model_dir = f"/faststorage/project/MutationAnalysis/Nimrod/results/models/fc_ray"
+    os.makedirs(model_dir, exist_ok=True)
+
     plots_dir = "/faststorage/project/MutationAnalysis/Nimrod/results/figures/fc"
     os.makedirs(plots_dir, exist_ok=True)
 
@@ -280,6 +283,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
         test_loss_future = test_set_loss.remote(best_trained_model, device)
         test_loss = ray.get(test_loss_future)
         print("Best trial test set loss: {:.4f}".format(test_loss))
+        torch.save(best_trained_model.state_dict(), f"{model_dir}/best_model.pt")
     
     ray.shutdown()
 
