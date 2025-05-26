@@ -10,7 +10,7 @@ from model_definitions import ModularModel
 
 
 # Load in data, load in trained models
-DATA_VERSION = ["3fC", "5fC", "7fC", "9fC", "11fC", "13fC", "15fC"]
+DATA_VERSION = ["3fA", "3fC", "5fA", "5fC", "7fA", "7fC", "9fA", "9fC", "11fA", "11fC", "13fA", "13fC", "15fA", "15fC"]
 BIN_SIZES = ["100kb", "500kb", "1mb"]
 MODEL_VARIANTS = {
     "avgmut": {"use_avg_mut": True, "use_bin_id_embed": False, "use_bin_id_norm": False},
@@ -112,5 +112,5 @@ for version in DATA_VERSION:
                 losses[variant_name][version] = {}
             losses[variant_name][version][bin_size] = loss
 
-with open("/faststorage/project/MutationAnalysis/Nimrod/results/log_losses_combined_models_C.json", "w") as f:
+with open("/faststorage/project/MutationAnalysis/Nimrod/results/log_losses_combined_models.json", "w") as f:
     json.dump(losses, f, indent=2)
