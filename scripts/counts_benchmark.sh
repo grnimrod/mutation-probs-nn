@@ -14,5 +14,7 @@ source /home/grnimrod/miniforge3/etc/profile.d/conda.sh
 # Activate virtual environment
 conda activate mutation-probs-nn
 
+DATA_VERSION=$1
+
 # Run the Python script
-python /faststorage/project/MutationAnalysis/Nimrod/src/train_counts_model.py --data_version 3fA
+python /faststorage/project/MutationAnalysis/Nimrod/src/train_counts_model.py --data_version "$DATA_VERSION"
