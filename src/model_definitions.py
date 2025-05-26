@@ -27,7 +27,7 @@ class KmerCountsModel:
         # Should only be able to run if fit() method was already ran
         if self.prob_table is None:
             raise ValueError("Model is not trained yet.")
-        return self.prob_table.loc[kmer] if kmer in self.prob_table.index else pd.Series(0, index=self.prob_table.columns)
+        return self.prob_table.loc[kmer] if kmer in self.prob_table.index else self.prob_table.mean(axis=0)
 
     def evaluate(self, X_test, y_test):
         y_true = []
@@ -118,6 +118,47 @@ class CombinedNN(nn.Module):
 
     def predict_proba(self, context_vec, bin_id):
         logits = self.forward(context_vec, bin_id)
+        return F.softmax(logits, dim=-1)
+
+
+class ModularModel(nn.Module):
+    def __init__(self, use_avg_mut=False, use_bin_id_embed=False, use_bin_id_norm=False, num_bins=None, embed_dim=None):
+        super().__init__()
+        self.use_avg_mut = use_avg_mut
+        self.use_bin_id_embed = use_bin_id_embed
+        self.use_bin_id_norm = use_bin_id_norm
+
+        if use_bin_id_embed:
+            self.embedding = nn.Embedding(num_embeddings=num_bins, embedding_dim=embed_dim)
+            self.flatten = nn.Flatten()
+        
+        self.linear_relu_seq = nn.Sequential(
+            nn.LazyLinear(128), nn.ReLU(),
+            nn.LazyLinear(64), nn.ReLU(),
+            nn.LazyLinear(4)
+        )
+    
+    def forward(self, local_context, avg_mut=None, bin_id=None, bin_id_norm=None):
+        inputs = [local_context]
+
+        if self.use_avg_mut:
+            inputs.append(avg_mut)
+        
+        if self.use_bin_id_embed:
+            assert self.embedding is not None, "Embedding layer not initialized. Did you forget to pass num_bins and embed_dim?"
+            embedded = self.embedding(bin_id)
+            flat = self.flatten(embedded)
+            inputs.append(flat)
+        
+        if self.use_bin_id_norm:
+            inputs.append(bin_id_norm)
+        
+        x = torch.cat(inputs, dim=-1)
+        x = self.linear_relu_seq(x)
+        return x
+    
+    def predict_proba(self, local_context, avg_mut=None, bin_id=None, bin_id_norm=None):
+        logits = self.forward(local_context, avg_mut=avg_mut, bin_id=bin_id, bin_id_norm=bin_id_norm)
         return F.softmax(logits, dim=-1)
 
 
