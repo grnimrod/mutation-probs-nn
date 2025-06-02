@@ -18,51 +18,60 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import argparse
 
+from utils.load_splits import load_splits
 
-def load_data(data_version, data_dir="/faststorage/project/MutationAnalysis/Nimrod/data/splits"):
-    if data_version == "fA":
-        filenames = ["X_train_A", "y_train_A", "X_val_A", "y_val_A", "X_test_A", "y_test_A"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(data_dir, filename + ".npy")) for filename in filenames]
 
-    elif data_version == "fC":
-        filenames = ["X_train_C", "y_train_C", "X_val_C", "y_val_C", "X_test_C", "y_test_C"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(data_dir, filename + ".npy")) for filename in filenames]
+class ModularModel(nn.Module):
+    def __init__(self, l1, l2, use_avg_mut=False, use_bin_id_embed=False, use_bin_id_norm=False, num_bins=None, embed_dim=None):
+        super().__init__()
+        self.use_avg_mut = use_avg_mut
+        self.use_bin_id_embed = use_bin_id_embed
+        self.use_bin_id_norm = use_bin_id_norm
 
-    elif data_version == "sA":
-        filenames = ["X_train_subset_A", "y_train_subset_A", "X_val_subset_A", "y_val_subset_A", "X_test_subset_A", "y_test_subset_A"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(data_dir, filename + ".npy")) for filename in filenames]
+        if use_bin_id_embed:
+            self.embedding = nn.Embedding(num_embeddings=num_bins, embedding_dim=embed_dim)
+            self.flatten = nn.Flatten()
+        
+        self.linear_relu_seq = nn.Sequential(
+            nn.LazyLinear(out_features=l1), nn.ReLU(),
+            nn.LazyLinear(out_features=l2), nn.ReLU(),
+            nn.LazyLinear(4)
+        )
+    
+    def forward(self, local_context, avg_mut=None, bin_id=None, bin_id_norm=None):
+        inputs = [local_context]
 
-    elif data_version == "sC":
-        filenames = ["X_train_subset_C", "y_train_subset_C", "X_val_subset_C", "y_val_subset_C", "X_test_subset_C", "y_test_subset_C"]
-        X_train, y_train, X_val, y_val, X_test, y_test = [np.load(os.path.join(data_dir, filename + ".npy")) for filename in filenames]
-
-    else:
-        print("Invalid file version specification")
-        exit(1)
-
-    files = [X_train, y_train, X_val, y_val, X_test, y_test]
-    files = [torch.as_tensor(file, dtype=torch.float32) for file in files]
-    X_train, y_train, X_val, y_val, X_test, y_test = files
-
-    train_dataset = TensorDataset(X_train, y_train)
-    val_dataset = TensorDataset(X_val, y_val)
-    test_dataset = TensorDataset(X_test, y_test)
-
-    return train_dataset, val_dataset, test_dataset
+        if self.use_avg_mut:
+            inputs.append(avg_mut)
+        
+        if self.use_bin_id_embed:
+            assert self.embedding is not None, "Embedding layer not initialized. Did you forget to pass num_bins and embed_dim?"
+            embedded = self.embedding(bin_id)
+            flat = self.flatten(embedded)
+            inputs.append(flat)
+        
+        if self.use_bin_id_norm:
+            inputs.append(bin_id_norm)
+        
+        x = torch.cat(inputs, dim=-1)
+        x = self.linear_relu_seq(x)
+        return x
+    
+    def predict_proba(self, local_context, avg_mut=None, bin_id=None, bin_id_norm=None):
+        logits = self.forward(local_context, avg_mut=avg_mut, bin_id=bin_id, bin_id_norm=bin_id_norm)
+        return F.softmax(logits, dim=-1)
 
 
 # Set up network architecture
 class FullyConnectedNN(nn.Module):
-    def __init__(self, l1=512, l2=256, l3=128):
+    def __init__(self, l1=128, l2=64):
         super().__init__()
         self.linear_relu_seq = nn.Sequential(
-            nn.Linear(in_features=15*4, out_features=l1),
+            nn.LazyLinear(out_features=l1),
             nn.ReLU(),
             nn.Linear(in_features=l1, out_features=l2),
             nn.ReLU(),
-            nn.Linear(in_features=l2, out_features=l3),
-            nn.ReLU(),
-            nn.Linear(in_features=l3, out_features=4)
+            nn.Linear(in_features=l2, out_features=4)
         )
     
     def forward(self, x):
@@ -74,8 +83,21 @@ class FullyConnectedNN(nn.Module):
         return F.softmax(logits, dim=-1)
 
 
-def train_model(config, data_version, epochs, data_dir=None):
-    model = FullyConnectedNN(config["l1"], config["l2"], config["l3"])
+def train_model(config, data_version, epochs):
+    # model = FullyConnectedNN(config["l1"], config["l2"])
+    model = ModularModel(config["l1"], config["l2"], use_avg_mut=True)
+
+    # X_local_train, y_train, X_local_val, y_val = load_splits(data_version, requested_splits=["train", "val"])
+    X_local_train, X_avg_mut_1mb_train, y_train, X_local_val, X_avg_mut_1mb_val, y_val = load_splits(data_version, requested_splits=["train", "val"], bin_size="100kb", requested_features=["avg_mut"])
+
+    train_dataset = TensorDataset(X_local_train, X_avg_mut_1mb_train, y_train)
+    val_dataset = TensorDataset(X_local_val, X_avg_mut_1mb_val, y_val)
+
+    # train_dataset = TensorDataset(X_local_train, y_train)
+    # val_dataset = TensorDataset(X_local_val, y_val)
+
+    with torch.no_grad():
+        model(local_context=X_local_train[:2], avg_mut=X_avg_mut_1mb_train[:2])
 
     device = "cpu"
     if torch.cuda.is_available():
@@ -86,7 +108,7 @@ def train_model(config, data_version, epochs, data_dir=None):
     print(f"Using device: {device}")
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=config["lr"])
+    optimizer = optim.Adam(model.parameters(), lr=config["lr"], weight_decay=1e-4)
 
     train_losses = []
     val_losses = []
@@ -103,29 +125,38 @@ def train_model(config, data_version, epochs, data_dir=None):
     else:
         start_epoch = 0
 
-    train_dataset, val_dataset, _ = load_data(data_version, data_dir)
 
     train_loader = DataLoader(train_dataset, batch_size=int(config["batch_size"]), shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=int(config["batch_size"])*2, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=int(config["batch_size"]), shuffle=False)
 
     for epoch in range(start_epoch, epochs):
         # Training phase
         model.train()
         running_loss = 0.0
-        for xb, yb in train_loader:
-            yb_indices = yb.argmax(dim=1)
-            xb, yb_indices = xb.to(device), yb_indices.to(device)
+        for xb_local, xb_region, yb in train_loader:
+            xb_local, xb_region, yb = xb_local.to(device), xb_region.to(device), yb.to(device)
 
-            # Zero the parameter gradients
+            pred = model(local_context=xb_local, avg_mut=xb_region)
+            loss = criterion(pred, yb)
             optimizer.zero_grad()
-
-            # Forward + backward + optimize
-            pred = model(xb)
-            loss = criterion(pred, yb_indices)
             loss.backward()
             optimizer.step()
+            running_loss += loss.item() * yb.size(0)
+
+        # for xb, yb in train_loader:
+        #     yb_indices = yb.argmax(dim=1)
+        #     xb, yb_indices = xb.to(device), yb_indices.to(device)
+
+        #     # Zero the parameter gradients
+        #     optimizer.zero_grad()
+
+        #     # Forward + backward + optimize
+        #     pred = model(xb)
+        #     loss = criterion(pred, yb_indices)
+        #     loss.backward()
+        #     optimizer.step()
             
-            running_loss += loss.item() * yb_indices.size(0)
+        #     running_loss += loss.item() * yb_indices.size(0)
         train_loss = running_loss / len(train_loader.dataset)
         train_losses.append(train_loss)
         
@@ -133,13 +164,12 @@ def train_model(config, data_version, epochs, data_dir=None):
         model.eval()
         running_loss = 0.0
         with torch.no_grad():
-            for xb, yb in val_loader:
-                yb_indices = yb.argmax(dim=1)
-                xb, yb_indices = xb.to(device), yb_indices.to(device)
-
-                pred = model(xb)
-                loss = criterion(pred, yb_indices)
-                running_loss += loss.item() * yb_indices.size(0)
+            for xb_local, xb_region, yb in val_loader:
+                xb_local, xb_region, yb = xb_local.to(device), xb_region.to(device), yb.to(device)
+                
+                pred = model(local_context=xb_local, avg_mut=xb_region)
+                loss = criterion(pred, yb)
+                running_loss += loss.item() * yb.size(0)
             
             val_loss = running_loss / len(val_loader.dataset)
             val_losses.append(val_loss)
@@ -166,8 +196,12 @@ def train_model(config, data_version, epochs, data_dir=None):
 
 
 @ray.remote
-def test_set_loss(model, device="cpu"):
-    _, _, test_dataset = load_data()
+def test_set_loss(model, data_version, device="cpu"):
+    X_local_test, X_avg_mut_test, y_test = load_splits(
+            data_version, requested_splits=["test"], bin_size="100kb", requested_features=["avg_mut"]
+        )
+
+    test_dataset = TensorDataset(X_local_test, X_avg_mut_test, y_test)
 
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
@@ -178,16 +212,26 @@ def test_set_loss(model, device="cpu"):
     model.eval()
     running_loss = 0.0
     with torch.no_grad():
-        for xb, yb in test_loader:
-            yb_indices = yb.argmax(dim=1)
-            xb, yb_indices = xb.to(device), yb_indices.to(device)
-
-            pred = model(xb)
-            loss = criterion(pred, yb_indices)
-            running_loss += loss.item() * yb_indices.size(0)
+        for xb_local, xb_region, yb in test_loader:
+            xb_local, xb_region, yb = xb_local.to(device), xb_region.to(device), yb.to(device)
+            
+            pred = model(local_context=xb_local, avg_mut=xb_region)
+            loss = criterion(pred, yb)
+            val_running_loss += loss.item() * yb.size(0)
         
         test_loss = running_loss / len(test_loader.dataset)
         test_losses.append(test_loss)
+
+        # for xb, yb in test_loader:
+        #     yb_indices = yb.argmax(dim=1)
+        #     xb, yb_indices = xb.to(device), yb_indices.to(device)
+
+        #     pred = model(xb)
+        #     loss = criterion(pred, yb_indices)
+        #     running_loss += loss.item() * yb_indices.size(0)
+        
+        # test_loss = running_loss / len(test_loader.dataset)
+        # test_losses.append(test_loss)
 
 
 def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
@@ -195,9 +239,13 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
     parser.add_argument(
         "--data_version",
         type=str,
-        choices=["fA", "fC", "sA", "sC"],
+        choices=[
+            "3fA", "3fC", "3sA", "3sC", "5fA", "5fC", "7fA", "7fC", "9fA", "9fC",
+            "11fA", "11fC", "13fA", "13fC", "15fA", "15fC", "15sA", "15sC",
+            "experiment_full", "experiment_subset"
+            ],
         required=True,
-        help="Specify version of the data requested (full or subset, A or C as reference nucleotide)"
+        help="Specify version of the data requested (kmer length, full or subset, A or C as reference nucleotide)"
     )
 
     args = parser.parse_args()
@@ -205,12 +253,9 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
     ray.init()
     
     data_version = args.data_version
-    data_dir = "/faststorage/project/MutationAnalysis/Nimrod/data/splits"
-    # load_data(data_version, data_dir)
     config = {
-        "l1": tune.choice([2 ** i for i in range(10)]),
-        "l2": tune.choice([2 ** i for i in range(10)]),
-        "l3": tune.choice([2 ** i for i in range(10)]),
+        "l1": tune.choice([2 ** i for i in range(4, 10)]),
+        "l2": tune.choice([2 ** i for i in range(4, 10)]),
         "lr": tune.loguniform(1e-4, 1e-1),
         "batch_size": tune.choice([4, 8, 16, 32, 64]),
     }
@@ -223,7 +268,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
     )
     
     result = tune.run(
-        partial(train_model, data_version=data_version, epochs=max_num_epochs, data_dir=data_dir),
+        partial(train_model, data_version=data_version, epochs=max_num_epochs),
         resources_per_trial={"cpu": 2, "gpu": gpus_per_trial},
         config=config,
         num_samples=num_samples,
@@ -264,7 +309,8 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
     print(f"Best trial config: {best_trial.config}")
     print(f"Best trial validation loss: {best_trial.last_result['val_loss']}")
 
-    best_trained_model = FullyConnectedNN(best_trial.config["l1"], best_trial.config["l2"], best_trial.config["l3"])
+    # best_trained_model = FullyConnectedNN(best_trial.config["l1"], best_trial.config["l2"], best_trial.config["l3"])
+    best_trained_model = ModularModel(best_trial.config["l1"], best_trial.config["l2"], use_avg_mut=True)
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda:0"
@@ -280,7 +326,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=1):
             best_checkpoint_data = pickle.load(fp)
         
         best_trained_model.load_state_dict(best_checkpoint_data["model_state_dict"])
-        test_loss_future = test_set_loss.remote(best_trained_model, device)
+        test_loss_future = test_set_loss.remote(best_trained_model, data_version, device)
         test_loss = ray.get(test_loss_future)
         print("Best trial test set loss: {:.4f}".format(test_loss))
         torch.save(best_trained_model.state_dict(), f"{model_dir}/best_model.pt")

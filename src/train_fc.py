@@ -1,14 +1,14 @@
 import os
+from datetime import datetime
 import torch
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 import matplotlib.pyplot as plt
-from datetime import datetime
 import argparse
 
 from utils.load_splits import load_splits
-from model_definitions import FCNNEmbedding
 from utils.early_stopping import EarlyStopping
+from model_definitions import ModularModel
 
 
 def train_fc(data_version):
@@ -19,50 +19,28 @@ def train_fc(data_version):
     print(f"Version of the data: {data_version}")
 
     X_local_train, y_train, X_local_val, y_val = load_splits(data_version, requested_splits=["train", "val"])
-    # print(X_train.shape)
 
-    def onehot_to_indexed_kmers(onehot_data):
-        """
-        Function to convert one-hot encoding to integer encoding for nn.Embedding()
-        by reshaping k-mer to (data_size, kmer_length, mut_outcomes=4) then taking
-        argmax
-        """
-
-        data_size = onehot_data.size(0)
-        kmer_length = onehot_data.size(1) // 4
-
-        reshaped = onehot_data.view(data_size, kmer_length, 4)
-
-        indexed = reshaped.argmax(dim=2)
-        return indexed.long()
-    
-    X_train = onehot_to_indexed_kmers(X_local_train)
-    X_val = onehot_to_indexed_kmers(X_local_val)
-
-    y_train = torch.argmax(y_train, dim=1).long()
-    y_val = torch.argmax(y_val, dim=1).long()
-
-    train_dataset = TensorDataset(X_train, y_train)
-    val_dataset = TensorDataset(X_val, y_val)
+    train_dataset = TensorDataset(X_local_train, y_train)
+    val_dataset = TensorDataset(X_local_val, y_val)
 
     # Inspect example feature-label pair
     feature, label = train_dataset[100]
     print(f"Example feature: {feature}\nexample label: {label}")
 
     # Set model parameters
-    lr = 0.001
+    lr = 0.0001
     epochs = 100
-    bs = 512
+    bs = 64
     train_losses, val_losses = [], []
 
     early_stopping = EarlyStopping()
 
     print(f"Parameter values:\nlr: {lr},\nbatch size: {bs}")
 
-    model = FCNNEmbedding(num_embeddings=4, embedding_dim=32) # TODO: try 32 with 7-mers and up
-    print(f"Embedding dimension: {model.embedding}")
+    model = ModularModel()
+    
     with torch.no_grad():
-        model(X_train[:2]) # So that weights are initialized before moving model to different device (required due to use of LazyLinear)
+        model(X_local_train[:2]) # So that weights are initialized before moving model to different device (required due to use of LazyLinear)
 
     # Choose device
     device = "cpu"
@@ -73,7 +51,7 @@ def train_fc(data_version):
     model.to(device)
     print(f"Using device: {device}")
 
-    opt = optim.Adam(model.parameters(), lr=lr) # TODO: possibly add weight decay (weight_decay=1e-4)
+    opt = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, mode='min', patience=3, factor=0.5, verbose=True)
 
     # Wrap DataLoader iterator around our custom dataset(s)
@@ -81,12 +59,6 @@ def train_fc(data_version):
     val_loader = DataLoader(val_dataset, batch_size=bs, shuffle=False)
 
     loss_func = nn.CrossEntropyLoss()
-
-    # Calculating accuracy will not be our focus
-    def accuracy(out, yb):
-        preds = torch.argmax(out, dim=1) # To make it compatible with batches (where shape is [bs, nr_classes]), use dim=1
-        return (preds == torch.argmax(yb, dim=1)).float().mean()
-    
 
     for epoch in range(epochs):
         # Training phase
@@ -144,7 +116,7 @@ def train_fc(data_version):
     plt.savefig(f"{plots_dir}/loss_curves_fc_{timestamp}.png")
     plt.close()
 
-    example_out = model(feature.unsqueeze(0)) # unsqueeze(0) to add a "batch" dimension of 1 at position 1
+    example_out = model(feature) # unsqueeze(0) to add a "batch" dimension of 1 at position 1
     print(f"Example of model output: {example_out}, {example_out.shape}")
 
 
