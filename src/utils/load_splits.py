@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 
-def load_splits(data_version: str, requested_splits: list, bin_size: str = None, requested_features: list = None, convert_to_tensor: bool = True):
+def load_splits(data_version: str, requested_splits: list, bin_size: str = None, requested_features: list = None, avg_mut_version_per_type: bool = True, convert_to_tensor: bool = True):
     """
     Load specified version of splits for model training.
     Order of the files returned: X_local_split, X_derived_split, y_split
@@ -60,6 +60,12 @@ def load_splits(data_version: str, requested_splits: list, bin_size: str = None,
     for split_name in requested_splits:
         splits.append(f"X_local_{split_name}")
         for feature in requested_features:
+            if feature == "avg_mut":
+                if avg_mut_version_per_type:
+                    splits.append(f"X_avg_mut_{bin_size}_pertype_{split_name}")
+                else:
+                    splits.append(f"X_avg_mut_{bin_size}_{split_name}")
+            else:
                 splits.append(f"X_{feature}_{bin_size}_{split_name}")
         splits.append(f"y_{split_name}")
 
